@@ -5,7 +5,7 @@
  */
 import { createServer, type Server } from 'node:http';
 
-import { dateState, isoWeekMonday, parentOf } from '../src/dates.js';
+import { buildQueue, cycleMonday, dstate } from '@ftb/core';
 import type { Judgment, JudgmentBatch, QueueEntry, Task } from '../src/types.js';
 
 export const FIXTURE_TODAY = '2026-09-07'; // a Monday
@@ -42,31 +42,9 @@ export interface FakeService {
 const GUARDED: (keyof Judgment)[] = ['u', 'i', 'status', 'deadline', 'category', 'reopen'];
 const OPEN = new Set(['Inbox', 'Planned', 'Active', 'Blocked']);
 
-function tierOf(r: Task, today: string): [number, string] {
-  const d = dateState(r, today);
-  if (d?.kind === 'overdue') return [1, String(d.n).padStart(6, '0')];
-  if (d && d.n <= 14 && d.kind !== 'dormant' && d.kind !== 'started') return [2, String(d.n).padStart(6, '0')];
-  if (!r.u && !r.i) return [3, r.recorded];
-  if (!r.triaged) return [4, r.recorded];
-  return [5, r.triaged];
-}
-
+/** The queue exactly as the service derives it: @ftb/core's buildQueue over the open rows. */
 export function deriveQueue(rows: Task[], today: string): QueueEntry[] {
-  const monday = isoWeekMonday(today);
-  const open = rows.filter((r) => OPEN.has(r.status));
-  const live = open.filter((r) => !(r.triaged && r.triaged >= monday));
-  const ids = new Set(live.map((r) => r.id));
-  const tops = live.filter((r) => !parentOf(r.id) || !ids.has(parentOf(r.id)!));
-  const entries = tops.map((t) => {
-    const branch: Task[] = [t];
-    const grab = (p: Task) => live.filter((r) => parentOf(r.id) === p.id).sort((a, b) => (a.id < b.id ? -1 : 1)).forEach((c) => { branch.push(c); grab(c); });
-    grab(t);
-    let best: [number, string] | null = null;
-    for (const r of branch) { const k = tierOf(r, today); if (!best || k[0] < best[0] || (k[0] === best[0] && k[1] < best[1])) best = k; }
-    return { top: t, rows: branch, tier: best![0] as QueueEntry['tier'], key: best };
-  });
-  entries.sort((a, b) => a.tier - b.tier || ((a.key as [number, string])[1] < (b.key as [number, string])[1] ? -1 : (a.key as [number, string])[1] > (b.key as [number, string])[1] ? 1 : 0) || (a.top.id < b.top.id ? -1 : 1));
-  return entries;
+  return buildQueue(rows.filter((r) => OPEN.has(r.status)), today);
 }
 
 function nextFreeIds(rows: Task[], n: number): string[] {
@@ -118,19 +96,19 @@ export async function startFakeService(opts: { rows?: Task[]; today?: string } =
       const chunk = Number(url.searchParams.get('chunk') ?? 5);
       const page = Number(url.searchParams.get('page') ?? 0);
       const all = deriveQueue(rows, today);
-      return send(200, { monday: isoWeekMonday(today), entries: all.slice(page * chunk, page * chunk + chunk), total: all.length, page, chunk, today });
+      return send(200, { monday: cycleMonday(today), entries: all.slice(page * chunk, page * chunk + chunk), total: all.length, page, chunk, today });
     }
     if (m === 'GET' && path === '/radar') {
       const open = rows.filter((r) => OPEN.has(r.status));
       const days = Number(url.searchParams.get('days') ?? 14);
-      const st = (r: Task) => dateState(r, today);
+      const st = (r: Task) => dstate(r, today);
       return send(200, {
-        overdue: open.filter((r) => st(r)?.kind === 'overdue'),
-        today_tomorrow: open.filter((r) => { const d = st(r); return d && d.n >= 0 && d.n <= 1 && d.kind !== 'dormant'; }),
-        fortnight: open.filter((r) => { const d = st(r); return d && d.n > 1 && d.n <= days && d.kind !== 'dormant'; }),
-        passed_not_overdue: open.filter((r) => { const k = st(r)?.kind; return k === 'eligible' || k === 'started'; }),
-        further: open.filter((r) => { const d = st(r); return d && d.n > days && d.kind !== 'dormant'; }),
-        dormant: open.filter((r) => st(r)?.kind === 'dormant'),
+        overdue: open.filter((r) => st(r)?.k === 'overdue'),
+        today_tomorrow: open.filter((r) => { const d = st(r); return d && d.n >= 0 && d.n <= 1 && d.k !== 'dormant'; }),
+        fortnight: open.filter((r) => { const d = st(r); return d && d.n > 1 && d.n <= days && d.k !== 'dormant'; }),
+        passed_not_overdue: open.filter((r) => { const k = st(r)?.k; return k === 'eligible' || k === 'started'; }),
+        further: open.filter((r) => { const d = st(r); return d && d.n > days && d.k !== 'dormant'; }),
+        dormant: open.filter((r) => st(r)?.k === 'dormant'),
         undated: open.filter((r) => !r.deadline),
       });
     }

@@ -96,6 +96,16 @@ export function inFortnight(row: Dated, today: string, days = 14): boolean {
   return !!d && d.n >= 0 && d.n <= days && d.k !== 'dormant';
 }
 
+/**
+ * Whole days since the row's last human triage judgment, or null when it was never judged. The
+ * staleness chip ("judged Nd ago" / "never judged") and the ⑤ tier both read from this; a Triaged
+ * date in the future (a clock skew) counts as today, never negative.
+ */
+export function daysSinceTriage(row: { triaged: string | null }, today: string): number | null {
+  if (!row.triaged) return null;
+  return Math.max(0, -dleft(today, row.triaged));
+}
+
 export type Quadrant = 'Do now' | 'Schedule' | 'Minimize' | 'Later' | 'Unjudged';
 
 export function quadrant(u: Score | null, i: Score | null): Quadrant {

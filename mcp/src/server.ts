@@ -12,7 +12,7 @@ import { z } from 'zod';
 
 import { RegistryClient, RegistryError } from './client.js';
 import { checkJudgmentBatch, refuseStatusChange } from './covenant.js';
-import { isoWeekMonday, parentOf, sofiaToday } from './dates.js';
+import { cycleMonday, parentOf, sofiaToday } from '@ftb/core';
 import { PROPOSAL_DISCLAIMER, proposeScores } from './proposals.js';
 import { legendText, stagingText, TIER_LABELS } from './staging.js';
 import type { Judgment, Task } from './types.js';
@@ -417,7 +417,7 @@ export function createRegistryMcpServer(opts: ServerOptions): McpServer {
       try {
         const [env, q] = await Promise.all([client.registry(true), client.queue(500, 0)]);
         const t = today(env.today);
-        const monday = q.monday ?? isoWeekMonday(t);
+        const monday = q.monday ?? cycleMonday(t);
         const ids = new Set(env.rows.map((r) => r.id));
         const judged = new Set<string>();
         const all = new Set<string>();

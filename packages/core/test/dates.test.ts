@@ -2,6 +2,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   cycleMonday,
+  daysSinceTriage,
   dleft,
   dstate,
   inFortnight,
@@ -107,5 +108,19 @@ describe('Europe/Sofia clock', () => {
   it('turns a stamp into an ISO timestamp with the right offset', () => {
     expect(stampToTimestamp('2026-08-31-1137')).toBe('2026-08-31T11:37:00+03:00');
     expect(stampToTimestamp('2026-12-01-0900')).toBe('2026-12-01T09:00:00+02:00');
+  });
+});
+
+describe('daysSinceTriage', () => {
+  it('is null when never judged, else whole days since the Triaged date', () => {
+    expect(daysSinceTriage({ triaged: null }, TODAY)).toBeNull();
+    expect(daysSinceTriage({ triaged: '' as unknown as null }, TODAY)).toBeNull();
+    expect(daysSinceTriage({ triaged: TODAY }, TODAY)).toBe(0);
+    expect(daysSinceTriage({ triaged: '2026-08-11' }, TODAY)).toBe(27);
+    expect(daysSinceTriage({ triaged: '2026-03-28' }, '2026-03-30')).toBe(2); // across the DST switch
+  });
+
+  it('never goes negative for a Triaged date after today', () => {
+    expect(daysSinceTriage({ triaged: '2026-09-09' }, TODAY)).toBe(0);
   });
 });

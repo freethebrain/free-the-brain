@@ -14,6 +14,15 @@ export function apiBase(): string {
   return b.replace(/\/+$/, "");
 }
 
+/** Every call to the Registry Service goes through here so the fetch init is uniform. `credentials:
+    "include"` makes the browser attach cookies cross-origin — the Cloudflare Access session cookie when
+    the app and the API sit on different origins (ADR-1) — and is harmless same-origin, where cookies
+    travel anyway. The service must answer with `Access-Control-Allow-Credentials: true` and an exact
+    origin, never `*`. */
+export function apiFetch(path: string, init: RequestInit = {}): Promise<Response> {
+  return fetch(apiBase() + path, { ...init, credentials: "include" });
+}
+
 export function pickMode(loc: { search: string; hostname: string } = window.location): Mode {
   const src = new URLSearchParams(loc.search).get("src");
   if (src === "api" || src === "fixture") return src;
@@ -91,7 +100,7 @@ export function fromEnvelope(env: RegistryEnvelope, today: string): Injection {
 
 export async function loadRegistry(mode: Mode = pickMode()): Promise<Injection> {
   if (mode === "api") {
-    const res = await fetch(apiBase() + "/api/v1/registry", { headers: { Accept: "application/json" } });
+    const res = await apiFetch("/api/v1/registry", { headers: { Accept: "application/json" } });
     if (!res.ok) throw new Error("GET /api/v1/registry → HTTP " + res.status);
     const env = (await res.json()) as RegistryEnvelope;
     return fromEnvelope(env, todaySofia());

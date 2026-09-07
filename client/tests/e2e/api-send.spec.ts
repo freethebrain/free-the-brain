@@ -8,6 +8,23 @@ import { fileURLToPath } from "node:url";
 
 const fixture = JSON.parse(readFileSync(join(dirname(fileURLToPath(import.meta.url)), "..", "..", "public", "fixture.json"), "utf8"));
 
+/* Every API request must carry `credentials: "include"` so the Cloudflare Access cookie travels when the
+   app and the API are on different origins. The route handler cannot see the fetch init, so a shim
+   installed before the app boots records the credentials mode of every fetch by URL. */
+async function recordFetchInits(page: Page) {
+  await page.addInitScript(() => {
+    const log: { url: string; credentials: string | undefined }[] = [];
+    (window as unknown as { __fetches: typeof log }).__fetches = log;
+    const orig = window.fetch;
+    window.fetch = (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+      log.push({ url, credentials: init?.credentials ?? (input instanceof Request ? input.credentials : undefined) });
+      return orig(input, init);
+    };
+  });
+  return () => page.evaluate(() => (window as unknown as { __fetches: { url: string; credentials: string | undefined }[] }).__fetches);
+}
+
 async function mockService(page: Page, opts: { judgments?: (body: string) => { status: number; body: unknown } } = {}) {
   const posted: { body: string; headers: Record<string, string> }[] = [];
   let stamp = "2026-09-07-0900";
@@ -35,6 +52,7 @@ async function judgeTwo(page: Page) {
 
 test("api mode: Send POSTs the results text with the attestation headers, then clears and reloads", async ({ page }) => {
   const posted = await mockService(page);
+  const fetches = await recordFetchInits(page);
   await page.goto("/?src=api");
   await page.waitForSelector("body[data-ready='1']");
   await page.evaluate(() => localStorage.clear());
@@ -49,7 +67,8 @@ test("api mode: Send POSTs the results text with the attestation headers, then c
   expect(posted[0].headers["x-human-judgment"]).toBe("true");
   expect(posted[0].headers["content-type"]).toContain("text/plain");
   const lines = posted[0].body.split("\n");
-  expect(lines[0]).toBe("TRIAGE — Master widget — 2026-09-07 (staged from 2026-09-07-0900)");
+  // TODAY in api mode is the device clock in Europe/Sofia, so the day is not pinned here
+  expect(lines[0]).toMatch(/^TRIAGE — Master widget — \d{4}-\d{2}-\d{2} \(staged from 2026-09-07-0900\)$/);
   expect(lines).toContain("T-101 (Publish the autumn course price list): U=H");
   expect(lines).toContain("T-103 (Fix the downstairs toilet door): status=Done");
   // the pending store is cleared and the registry reloaded from the service
@@ -57,6 +76,12 @@ test("api mode: Send POSTs the results text with the attestation headers, then c
   await expect(page.locator("#prov")).toContainText("2026-09-07-1015");
   expect(await page.locator("#exp").evaluate((el) => getComputedStyle(el).display)).toBe("block");
   expect(await page.evaluate(() => Object.keys(localStorage).filter((k) => k.startsWith("pto-master-pending::")))).toEqual([]);
+  // after a live send there is nothing to paste: the helper line says so
+  await expect(page.locator("#expnote")).toHaveText("Recorded — your judgments are in the registry.");
+  // every API request — the registry loads and the judgments POST — carried credentials: "include"
+  const api = (await fetches()).filter((f) => f.url.includes("/api/v1/"));
+  expect(api.map((f) => f.url.replace(/^.*\/api\/v1/, ""))).toEqual(["/registry", "/judgments/text", "/registry"]);
+  expect(api.map((f) => f.credentials)).toEqual(["include", "include", "include"]);
 });
 
 test("api mode: a failed send keeps every judgment and falls back to the clipboard panel with the error", async ({ page }) => {
@@ -70,6 +95,8 @@ test("api mode: a failed send keeps every judgment and falls back to the clipboa
   await page.locator("#sendbtn").click();
   await expect(page.locator("#copystate")).toContainText("Send failed — HTTP 403 — covenant: human_judgment missing. Judgments kept.");
   expect(await page.locator("#exp").evaluate((el) => getComputedStyle(el).display)).toBe("block");
+  // the clipboard flow is the fallback, so its paste instruction is the helper line
+  await expect(page.locator("#expnote")).toContainText("Paste this into the chat");
   expect(await page.locator("#exptext").inputValue()).toContain("T-103 (Fix the downstairs toilet door): status=Done");
   await expect(page.locator("#sendn")).toHaveText("2");
   // still there after a reload

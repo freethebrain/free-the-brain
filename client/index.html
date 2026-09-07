@@ -21,13 +21,18 @@
   <input type="text" id="q" placeholder="Filter this tab…">
   <button class="tbtn" id="subtoggle">Hide subtasks</button>
   <button class="tbtn" id="clearbtn" title="Discard every unsent judgment">Clear unsent</button>
+  <button class="tbtn" id="capbtn" title="Capture a task from any tab">+ Capture</button>
   <button class="tbtn sendbtn" id="sendbtn">Send results<span class="n" id="sendn"></span></button>
+</div>
+<div class="quickcap" id="quickcap">
+  <input type="text" id="quickbox" placeholder="Capture a task… Enter adds it to Send results" autocomplete="off">
+  <span class="state" id="quickstate"></span>
 </div>
 <div class="notice" id="notice"></div>
 <div class="export" id="exp">
   <textarea id="exptext" readonly></textarea>
   <div class="row"><button class="tbtn" id="copybtn">Copy to clipboard</button><span class="state" id="copystate"></span></div>
-  <p class="expnote">Paste this into the chat and I'll record it, stamp Triaged on every row named, and write the delta.</p>
+  <p class="expnote" id="expnote">Paste this into the chat and I'll record it, stamp Triaged on every row named, and write the delta.</p>
 </div>
 <div id="host"></div>
 <p class="hint" id="hint"></p>

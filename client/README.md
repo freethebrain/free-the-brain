@@ -13,7 +13,7 @@ npm run preview
 npm run icons                    # regenerate public/icons/* (no image library needed)
 ```
 
-`VITE_API_BASE` — base URL of the Registry Service (no trailing slash), e.g. `VITE_API_BASE=http://localhost:8787 npm run dev`. Copy `.env.example` to `.env.local` to set it permanently. When unset, api mode uses the same origin (`/api/v1/...`).
+`VITE_API_BASE` — base URL of the Registry Service (no trailing slash), e.g. `VITE_API_BASE=http://localhost:8787 npm run dev`. Copy `.env.example` to `.env.local` to set it permanently. When unset, api mode uses the same origin (`/api/v1/...`). Every API request goes through `apiFetch` (`src/data/loader.ts`) with `credentials: "include"`, so the Cloudflare Access session cookie travels when the app and the API sit on different origins; same-origin is unaffected. The service's CORS answer must then name the exact app origin and send `Access-Control-Allow-Credentials: true`.
 
 ## Two data modes
 
@@ -26,7 +26,11 @@ Mapping (`src/data/loader.ts`): the API `Task` becomes the widget row `id task c
 
 ## Send results
 
-The clipboard/export panel is unchanged from the template. In api mode, Send first `POST`s the same text to `${VITE_API_BASE}/api/v1/judgments/text` (`Content-Type: text/plain`, `X-Actor: ftb`, `X-Human-Judgment: true`). On success the panel's state line reads `Recorded n judgments · delta <stamp>`, the pending store is cleared, and the rows reload from the service. On failure the panel falls back to the clipboard flow with the error in the state line and every judgment kept — in memory and in local storage.
+The clipboard/export panel is unchanged from the template. In api mode, Send first `POST`s the same text to `${VITE_API_BASE}/api/v1/judgments/text` (`Content-Type: text/plain`, `X-Actor: ftb`, `X-Human-Judgment: true`). On success the panel's state line reads `Recorded n judgments · delta <stamp>`, the helper line under it reads `Recorded — your judgments are in the registry.`, the pending store is cleared, and the rows reload from the service. On failure the panel falls back to the clipboard flow — the template's `Paste this into the chat…` helper line, the error in the state line — and every judgment kept, in memory and in local storage.
+
+## Capture from any tab
+
+`+ Capture` in the controls row reveals a single input under it; Enter adds the line as a capture row and keeps the box open for the next one. It writes to the same store the Triage tab's capture rows use — reserved IDs first, then extras past `NEXTNUM` — so the row shows on the Triage tab, counts in the Send badge, survives a reload, and lands in Send results under `NEW TASKS`. The tab does not change: capture costs one line and nothing else. The share sheet on Android lands in the same store.
 
 ## Tests
 
@@ -35,7 +39,7 @@ npm run test:unit     # vitest — derive modules: DL/SO/SB states, offsetDate c
 npm run test:e2e      # playwright — starts vite on :5173, fixture mode, Chromium
 ```
 
-Chromium is preinstalled under `PLAYWRIGHT_BROWSERS_PATH=/opt/pw-browsers` in the build environment; do not run `playwright install` there. The e2e tests verify behaviour **by computed style, never by class presence** — the spec's standing lesson after the vanishing-row bug: `.det` is `display:block` after a tap, a status chip's background really changes, the row element under the cursor is still `isConnected`, the done circle produces `text-decoration-line: line-through`, and Send's text carries the judged row's id and fields. A second file mocks the service to cover the api-mode send, its failure path, and the fixture fallback.
+Chromium is preinstalled under `PLAYWRIGHT_BROWSERS_PATH=/opt/pw-browsers` in the build environment; do not run `playwright install` there. The e2e tests verify behaviour **by computed style, never by class presence** — the spec's standing lesson after the vanishing-row bug: `.det` is `display:block` after a tap, a status chip's background really changes, the row element under the cursor is still `isConnected`, the done circle produces `text-decoration-line: line-through`, and Send's text carries the judged row's id and fields. A second file mocks the service to cover the api-mode send (including that every API fetch carries `credentials: "include"`, recorded by a fetch shim installed before boot, and the helper line after a live send), its failure path, and the fixture fallback. A third covers the `+ Capture` box: revealed by computed style, rows landing in the Triage store and in `NEW TASKS`, extras past the reserved block, and survival across a reload.
 
 ## Layout
 
@@ -73,3 +77,5 @@ Everything else is the template's behaviour, ported line for line.
 5. **≤720px:** the tab bar is `position:fixed` at the bottom (same elements and ids), Send floats above it as a pill, and the row's right-hand chip cluster may shrink and wrap (`.ir{flex:0 1 auto}`, `.iname{flex:1 1 120px}`) instead of overflowing onto the task name as the template's `flex:none` does at 400px.
 6. **Unreachable service** in api mode falls back to the fixture with a notice rather than an empty page.
 7. `body[data-ready="1"]` is set after the first render, for the tests to wait on.
+8. **`+ Capture`** in the controls row (`#capbtn`, `#quickcap`, `#quickbox`) — the template's capture rows live only on the Triage tab; the box makes the same store reachable from every tab.
+9. **The export panel's helper line** is dynamic (`#expnote`): the template's paste instruction in the clipboard flow, `Recorded — your judgments are in the registry.` after a live send.

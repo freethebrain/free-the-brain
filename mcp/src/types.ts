@@ -1,31 +1,17 @@
 /**
  * Shapes from docs/api-contract.md (Registry Service API v1).
- * Kept local to mcp/ until packages/core exports them; the two must agree
- * with the contract, not with each other.
+ * The row shape, the score / status / deadline enums and the queue entry come from @ftb/core
+ * (ADR-2: one definition, every surface); what stays here is the wire envelope the service
+ * wraps them in, and the judgment / capture request bodies the MCP tools send.
  */
+import type { DeadlineType, QueueEntry, Score, Status } from '@ftb/core';
 
-export type Level = 'H' | 'M' | 'L';
-export type Status = 'Inbox' | 'Planned' | 'Active' | 'Blocked' | 'Done' | 'Dropped';
-export type DeadlineType = 'DL' | 'SO' | 'SB';
-export type DeadlineKind = 'hard' | 'self' | 'agreed';
+export type { DeadlineKind, DeadlineType, QueueEntry, Score, Status, Task, Tier } from '@ftb/core';
 
-export interface Task {
-  id: string;
-  task: string;
-  category: string;
-  u: Level | null;
-  i: Level | null;
-  status: Status;
-  recorded: string;
-  triaged: string | null;
-  deadline: string | null;
-  deadline_type: DeadlineType | null;
-  deadline_kind: DeadlineKind | null;
-  done: string | null;
-  notes: string;
-  blocker: string | null;
-  updated_at: string;
-}
+/** The MCP layer's historical name for a score. */
+export type Level = Score;
+
+import type { Task } from '@ftb/core';
 
 export interface RegistryEnvelope {
   stamp: string;
@@ -34,13 +20,6 @@ export interface RegistryEnvelope {
   counts: { open: number; done: number; dropped: number; total: number };
   next_free_id: string;
   reserved: string[];
-}
-
-export interface QueueEntry {
-  top: Task;
-  rows: Task[];
-  tier: 1 | 2 | 3 | 4 | 5;
-  key: unknown;
 }
 
 export interface QueueResponse {

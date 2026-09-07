@@ -2,21 +2,19 @@
  * The compact human-readable staging text — the widget's Triage tab as text.
  * Legend first, then one line per row inside each entry; subtask rows indented.
  */
+import { TIER_NAMES, depthOf } from '@ftb/core';
+import type { Tier } from '@ftb/core';
 import { dateStateText, stalenessText } from './dates.js';
 import type { QueueEntry, QueueResponse, Task } from './types.js';
 
-export const TIER_LABELS: Record<number, string> = {
-  1: '① Overdue',
-  2: '② Dated within 14 days',
-  3: '③ Never judged',
-  4: '④ Unverified scores — U/I present, never confirmed by him',
-  5: '⑤ Stalest triage',
-};
+/** The five tier names, from @ftb/core so every surface prints the same legend. */
+export const TIER_LABELS: Record<number, string> = TIER_NAMES;
+export const TIERS: readonly Tier[] = [1, 2, 3, 4, 5];
 
 export function legendText(monday: string): string {
   return (
     'Sort order: ' +
-    [1, 2, 3, 4, 5].map((t) => TIER_LABELS[t]).join(' · ') +
+    TIERS.map((t) => TIER_LABELS[t]).join(' · ') +
     `. Rows judged since Monday ${monday.slice(5)} are out of the queue. A branch is one entry; a partially judged branch re-enters for its unjudged rows. Ties by ID.`
   );
 }
@@ -44,7 +42,7 @@ export function rowLine(row: Task, today: string, indent = 0): string {
 }
 
 function depthWithin(entry: QueueEntry, row: Task): number {
-  return Math.max(0, row.id.split('.').length - entry.top.id.split('.').length);
+  return Math.max(0, depthOf(row.id) - depthOf(entry.top.id));
 }
 
 export function stagingText(q: QueueResponse, today: string): string {

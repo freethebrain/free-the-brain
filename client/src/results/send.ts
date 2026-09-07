@@ -2,7 +2,7 @@
    mode the same text is first POSTed to the Registry Service as text/plain with the human-judgment
    attestation. A failed send falls back to the clipboard panel with the error shown — the pending
    store is only cleared after the service has confirmed the batch. */
-import { apiBase } from "../data/loader";
+import { apiFetch } from "../data/loader";
 import { countJudgments } from "./build";
 
 const $ = (id: string) => document.getElementById(id) as HTMLElement;
@@ -11,8 +11,18 @@ export function setCopyState(s: string): void {
   $("copystate").textContent = s;
 }
 
-export function showExportPanel(txt: string): HTMLElement {
+/* The helper line under the panel. The template's "paste this into the chat" instruction is the
+   clipboard flow's; once the service has recorded the batch there is nothing left to paste. */
+export const NOTE_PASTE = "Paste this into the chat and I'll record it, stamp Triaged on every row named, and write the delta.";
+export const NOTE_RECORDED = "Recorded — your judgments are in the registry.";
+
+export function setExportNote(s: string): void {
+  $("expnote").textContent = s;
+}
+
+export function showExportPanel(txt: string, note: string = NOTE_PASTE): HTMLElement {
   ($("exptext") as HTMLTextAreaElement).value = txt;
+  setExportNote(note);
   const exp = $("exp");
   exp.style.display = "block";
   return exp;
@@ -57,9 +67,8 @@ export interface SendOutcome {
 
 /** POST the Send-results text verbatim to the service. Resolves with the outcome; never throws. */
 export async function submitResults(txt: string): Promise<SendOutcome> {
-  const url = apiBase() + "/api/v1/judgments/text";
   try {
-    const res = await fetch(url, {
+    const res = await apiFetch("/api/v1/judgments/text", {
       method: "POST",
       headers: { "Content-Type": "text/plain; charset=utf-8", "X-Actor": "ftb", "X-Human-Judgment": "true" },
       body: txt,

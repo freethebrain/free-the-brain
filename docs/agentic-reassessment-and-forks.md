@@ -63,9 +63,8 @@ Each fork blocks something specific; nothing else waits on it. Do them in order;
 
 ## 5. Known gaps, named once
 
-- The client does not yet send credentials cross-origin; behind Cloudflare Access the app and API should share an origin or the fetch needs `credentials: 'include'`. Claude fixes this during deployment (it is a one-line change in `client/src/data/registry.ts` plus the CORS allowlist).
+- The client now sends `credentials: 'include'` on every API request (`apiFetch` in `client/src/data/loader.ts`), so the Cloudflare Access cookie travels cross-origin. What remains is on the service side: the CORS answer must carry `Access-Control-Allow-Credentials: true` with an exact origin, never `*`.
 - The MCP App view is read-only; judging happens in the app or by telling Claude. In-view judging is polish, not launch.
 - Local notifications are scheduled on the device; push from the server is not built (not needed for a single user whose phone opens the app).
 - No debug APK was built here (no Android SDK in the sandbox); the project syncs cleanly and the Gradle files are in place. The first real build happens on your PC at step 3 of the release doc.
-- The export panel's "Paste this into the chat…" line still shows in live mode after a successful send — cosmetic, on the polish list.
 - iOS: untouched beyond Capacitor being iOS-capable.

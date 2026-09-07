@@ -14,7 +14,8 @@ A remote MCP server (Streamable HTTP) in front of the Registry Service (`service
 | `src/worker.ts` | Cloudflare Worker entry — the same handler on `fetch`. |
 | `src/client.ts` | Fetch client for the Registry Service. Every write carries `actor` and `source: "mcp"`. |
 | `src/covenant.ts` | The local refusal: guarded fields are `u`, `i`, `status`, `deadline`, `category`, `reopen`. |
-| `src/staging.ts`, `src/dates.ts` | The staging text and the DL / SO / SB date semantics, ported from the Master widget. |
+| `src/staging.ts`, `src/dates.ts` | The staging text, and the date / staleness chips as text. The semantics behind them — DL / SO / SB states, tiers, the ISO-week Monday, the Sofia clock — are `@ftb/core`'s (ADR-2). |
+| `src/types.ts` | The wire envelopes and request bodies from the API contract. The row shape and enums are re-exported from `@ftb/core`. |
 | `src/proposals.ts` | The `propose_scores` placeholder heuristic. |
 | `src/ui.ts` | The MCP App view (read-only HTML rendering of one chunk). |
 | `test/` | vitest: a fake Registry Service on `node:http` + the SDK client over Streamable HTTP. |
@@ -136,11 +137,11 @@ ADR-1 says the MCP server uses OAuth via `@cloudflare/workers-oauth-provider` so
 - **OAuth**: hook only (above). Bearer token everywhere.
 - **The MCP App view is read-only.** No editor, no Send inside the view.
 - **`propose_scores` is a placeholder heuristic**, deliberately simple and labelled as such; the value model it will eventually draw on stays deferred (PTO Forelog F-3).
-- **Shapes are local** (`src/types.ts`) until `packages/core` exports them; the date semantics and tier rules in `src/dates.ts` / `src/staging.ts` are the widget's, ported by hand, and should be replaced by the `core` exports when they land so every surface derives the same queue from the same code.
+- **The MCP App view's HTML** (`src/ui.ts`) still carries its own copy of the date-state switch, because it is a self-contained document inlined for the host's sandbox and cannot import `@ftb/core`. Everything the tools compute goes through core.
 - **"today"**: taken from the service's `today` when the response carries one (the registry envelope does; `/queue` and `/radar` may not), else the Europe/Sofia device date. Tests pin it.
 - **Phone rendering of the MCP App view**: unverified, as the plan says.
 - **Tests run against a fake service**, not `service/`. `scripts/integration-smoke.ts` is the manual run against the real one (2026-09-07: all steps pass against the seeded registry, 157 rows).
 
 ## Versions (pinned exactly)
 
-`@modelcontextprotocol/sdk` 1.30.0 · `@modelcontextprotocol/ext-apps` 1.7.5 · `zod` 4.4.3 (matched to the exact pin wrangler, miniflare and vitest-pool-workers carry, so the workspace holds one copy — two copies broke `tsc` on the SDK's `AnySchema`) · `typescript` 5.9.3 · `vitest` 4.1.11 · `tsx` 4.23.13 · `wrangler` 4.129.0 · `@cloudflare/workers-types` 5.20260907.1 · `@types/node` 26.4.1. Node ≥ 22.
+`@ftb/core` (workspace) · `@modelcontextprotocol/sdk` 1.30.0 · `@modelcontextprotocol/ext-apps` 1.7.5 · `zod` 4.4.3 (matched to the exact pin wrangler, miniflare and vitest-pool-workers carry, so the workspace holds one copy — two copies broke `tsc` on the SDK's `AnySchema`) · `typescript` 5.9.3 · `vitest` 4.1.11 · `tsx` 4.23.13 · `wrangler` 4.129.0 · `@cloudflare/workers-types` 5.20260907.1 · `@types/node` 26.4.1. Node ≥ 22.

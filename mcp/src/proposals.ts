@@ -3,7 +3,7 @@
  * that returns proposals and writes NOTHING. U and I remain his judgments; the
  * only path to the registry is triage_record with human_judgment: true.
  */
-import { dateState } from './dates.js';
+import { dstate } from '@ftb/core';
 import type { Level, Task } from './types.js';
 
 /** Earning Hierarchy, top tier first (Portfolio card order in the Master widget). */
@@ -31,18 +31,18 @@ export const PROPOSAL_DISCLAIMER =
   'not his judgment. Offer it as a read he can overrule in one word; record only what he decides, via triage_record with human_judgment: true.';
 
 export function proposeScores(row: Task, today: string): ScoreProposal {
-  const d = dateState(row, today);
+  const d = dstate(row, today);
   const hard = row.deadline_kind === 'hard';
   const why: string[] = [];
 
   let u: Level;
-  if (d?.kind === 'overdue') {
+  if (d?.k === 'overdue') {
     u = 'H';
     why.push(`${-d.n}d overdue → U=H`);
-  } else if (d && d.kind !== 'dormant' && d.n <= 14 && (hard || d.n <= 7)) {
+  } else if (d && d.k !== 'dormant' && d.n <= 14 && (hard || d.n <= 7)) {
     u = 'H';
     why.push(`${hard ? 'hard ' : ''}date in ${d.n}d → U=H`);
-  } else if (d && d.kind !== 'dormant' && d.n <= 30) {
+  } else if (d && d.k !== 'dormant' && d.n <= 30) {
     u = 'M';
     why.push(`dated in ${d.n}d → U=M`);
   } else if (row.status === 'Blocked') {
@@ -50,7 +50,7 @@ export function proposeScores(row: Task, today: string): ScoreProposal {
     why.push('blocked, undated → U=L');
   } else {
     u = 'L';
-    why.push(d?.kind === 'dormant' ? 'dormant start-on → U=L' : 'no pressing date → U=L');
+    why.push(d?.k === 'dormant' ? 'dormant start-on → U=L' : 'no pressing date → U=L');
   }
 
   const cat = CATEGORY_TIERS[row.category];

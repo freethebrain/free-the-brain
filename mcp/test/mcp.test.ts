@@ -5,7 +5,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 
 import { createNodeServer, listen, loadExtAppsBundle } from '../src/node.js';
 import { TRIAGE_VIEW_URI } from '../src/ui.js';
-import { parentOf } from '../src/dates.js';
+import { parentOf } from '@ftb/core';
 import { deriveQueue, FIXTURE_TODAY, startFakeService, type FakeService } from './fake-service.js';
 
 const TOKEN = 'test-token-do-not-use';

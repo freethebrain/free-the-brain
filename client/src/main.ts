@@ -11,7 +11,7 @@ import { forgetPending, hideNotice, restore, save, setNotice } from "./persist/s
 import { render, updateChrome } from "./render/index";
 import { tyHint } from "./render/editor";
 import { buildResults, countJudgments } from "./results/build";
-import { copyText, setCopyState, showExportPanel, submitResults } from "./results/send";
+import { NOTE_RECORDED, copyText, setCopyState, setExportNote, showExportPanel, submitResults } from "./results/send";
 import { view } from "./state";
 import {
   applyStatusBar,
@@ -31,6 +31,7 @@ function clearAll(): void {
   forgetPending();
   hideNotice();
   $("exp").style.display = "none";
+  $("quickstate").textContent = "";
   render();
 }
 
@@ -43,9 +44,10 @@ function addRow(): void {
   render();
 }
 
-/* Text shared into the app (Android share sheet) lands in the first empty capture row, on the Triage
-   tab, as a pending capture — recorded only when he sends, like any other capture. */
-function prefillCapture(text: string): void {
+/* One capture store, reached three ways: the Triage tab's rows, the share sheet, and the "+ Capture"
+   box in the controls row. Text lands in the first empty capture slot — reserved IDs first, then
+   extras — and is recorded only when he sends, like any other capture. Returns the slot index. */
+function captureInto(text: string): number {
   const ids = REG.RESERVED.concat(view.extra);
   let n = ids.findIndex((_id, i) => !(view.capVals[i] && view.capVals[i].trim()));
   if (n < 0) {
@@ -53,11 +55,41 @@ function prefillCapture(text: string): void {
     n = ids.length;
   }
   view.capVals[n] = text;
-  view.tab = "triage";
   save();
+  return n;
+}
+
+/* Text shared into the app (Android share sheet) lands in a capture row on the Triage tab. */
+function prefillCapture(text: string): void {
+  const n = captureInto(text);
+  view.tab = "triage";
   render();
   const box = document.querySelector<HTMLInputElement>('[data-cap="' + n + '"]');
   if (box) box.focus();
+}
+
+/* The one-tap capture box: reachable on every tab, one input, Enter adds a row. The tab does not
+   change — capture must cost one line and nothing else. */
+function toggleQuickCapture(): void {
+  const box = $("quickcap");
+  const on = box.style.display !== "flex";
+  box.style.display = on ? "flex" : "none";
+  $("capbtn").classList.toggle("on", on);
+  if (on) ($("quickbox") as HTMLInputElement).focus();
+}
+
+function quickCapture(): void {
+  const input = $("quickbox") as HTMLInputElement;
+  const v = input.value.trim();
+  if (!v) return;
+  const n = captureInto(v);
+  const id = REG.RESERVED.concat(view.extra)[n];
+  input.value = "";
+  $("quickstate").textContent = id + " captured · pending until sent";
+  tapFeedback();
+  if (view.tab === "triage") render();
+  else updateChrome();
+  input.focus();
 }
 
 /* After every registry load the phone's reminders are re-derived from the rows (no-op on the web). */
@@ -205,6 +237,10 @@ document.addEventListener("click", (e) => {
     addRow();
     return;
   }
+  if (t.id === "capbtn") {
+    toggleQuickCapture();
+    return;
+  }
   if (t.id === "noticeclear") {
     clearAll();
     return;
@@ -264,7 +300,10 @@ document.addEventListener("input", (e) => {
 });
 
 document.addEventListener("keydown", (e) => {
-  if (e.key === "Enter" && (e.target as HTMLElement).id === "addbox") addRow();
+  if (e.key !== "Enter") return;
+  const id = (e.target as HTMLElement).id;
+  if (id === "addbox") addRow();
+  if (id === "quickbox") quickCapture();
 });
 
 $("subtoggle").onclick = () => {
@@ -305,6 +344,7 @@ $("sendbtn").onclick = async () => {
     }
     render();
     setCopyState(line);
+    setExportNote(NOTE_RECORDED);
   } else {
     /* Never lose judgments on a failed send: the store is untouched; hand the text over by clipboard instead. */
     copyText(txt, "Send failed — " + (out.error || "unknown error") + ". Judgments kept. ");
