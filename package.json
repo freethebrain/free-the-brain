@@ -1,0 +1,27 @@
+{
+  "name": "free-the-brain",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Free the Brain monorepo: core registry library, registry service, client, MCP server, site.",
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "workspaces": [
+    "packages/core",
+    "service",
+    "client",
+    "mcp",
+    "site"
+  ],
+  "scripts": {
+    "test": "vitest run",
+    "test:core": "vitest run --project core",
+    "test:service": "vitest run --project service",
+    "typecheck": "npm run typecheck --workspaces --if-present"
+  },
+  "devDependencies": {
+    "typescript": "5.9.3",
+    "vitest": "4.1.11"
+  }
+}

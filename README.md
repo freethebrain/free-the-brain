@@ -12,4 +12,8 @@ The Personal Task Organization master widget, grown into a standalone app (web �
 - `site/` — the marketing site.
 - `data/` — local copies of the registry (gitignored) and brand assets.
 
+## Working on it
+
+Node 22, npm workspaces. `npm install` at the root (the `.npmrc` sets `legacy-peer-deps`, which npm 10.9 needs to resolve vitest 4's optional peer cycle without crashing). `npm test` runs the `core` and `service` vitest projects; `npm run typecheck` runs `tsc --noEmit` in every workspace that defines it. The service tests run inside workerd against a local D1 — no account, no network. `data/registry` is gitignored; tests that need the real files skip when it is absent. See `service/README.md` for seeding the local database.
+
 Decisions of record: v1 is single-user (FtB); canonical data moves to the service with Drive as archive; MCP server first; FtB builds it piloting AI.
