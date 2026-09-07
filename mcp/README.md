@@ -20,6 +20,7 @@ A remote MCP server (Streamable HTTP) in front of the Registry Service (`service
 | `test/` | vitest: a fake Registry Service on `node:http` + the SDK client over Streamable HTTP. |
 | `scripts/build-ui.mjs` | Copies the ext-apps browser bundle into `src/generated/` for the Worker build. |
 | `scripts/worker-smoke.ts` | Manual round-trip through `wrangler dev` (local workerd). |
+| `scripts/integration-smoke.ts` | Manual run against the REAL `service/` (seeded `wrangler dev`): queue → stage → propose (no write) → unattested refusal → note_append → the pending delta parses with core. Writes one note line; re-seed afterwards. |
 
 ## Run locally
 
@@ -138,8 +139,8 @@ ADR-1 says the MCP server uses OAuth via `@cloudflare/workers-oauth-provider` so
 - **Shapes are local** (`src/types.ts`) until `packages/core` exports them; the date semantics and tier rules in `src/dates.ts` / `src/staging.ts` are the widget's, ported by hand, and should be replaced by the `core` exports when they land so every surface derives the same queue from the same code.
 - **"today"**: taken from the service's `today` when the response carries one (the registry envelope does; `/queue` and `/radar` may not), else the Europe/Sofia device date. Tests pin it.
 - **Phone rendering of the MCP App view**: unverified, as the plan says.
-- **Tests run against a fake service**, not `service/`. When `service/` has a local runner, add one integration run against it.
+- **Tests run against a fake service**, not `service/`. `scripts/integration-smoke.ts` is the manual run against the real one (2026-09-07: all steps pass against the seeded registry, 157 rows).
 
 ## Versions (pinned exactly)
 
-`@modelcontextprotocol/sdk` 1.30.0 · `@modelcontextprotocol/ext-apps` 1.7.5 · `zod` 4.5.4 · `typescript` 5.9.3 · `vitest` 4.1.11 · `tsx` 4.23.13 · `wrangler` 4.129.0 · `@cloudflare/workers-types` 5.20260907.1 · `@types/node` 26.4.1. Node ≥ 22.
+`@modelcontextprotocol/sdk` 1.30.0 · `@modelcontextprotocol/ext-apps` 1.7.5 · `zod` 4.4.3 (matched to the exact pin wrangler, miniflare and vitest-pool-workers carry, so the workspace holds one copy — two copies broke `tsc` on the SDK's `AnySchema`) · `typescript` 5.9.3 · `vitest` 4.1.11 · `tsx` 4.23.13 · `wrangler` 4.129.0 · `@cloudflare/workers-types` 5.20260907.1 · `@types/node` 26.4.1. Node ≥ 22.
