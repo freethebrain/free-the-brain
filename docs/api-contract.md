@@ -32,8 +32,9 @@ Subtasks: dotted IDs; depth = number of dots. Parent = id without its last segme
 | GET | `/registry/open` | open rows only, same envelope. |
 | GET | `/queue?chunk=5&page=0` | The five-tier triage queue for the current ISO week. `{ monday, entries: [{ top: Task, rows: Task[], tier: 1..5, key }], total, page, chunk }`. |
 | GET | `/radar?days=14` | `{ overdue: Task[], today_tomorrow: Task[], fortnight: Task[], passed_not_overdue: Task[], further: Task[], dormant: Task[], undated: Task[] }` using the DL/SO/SB semantics. |
+| GET | `/dated` | Flat array, for mirrors (the Google Tasks relay): every open row carrying a date, `[{ id, task, deadline, deadline_type, status }]`, sorted by date then ID. Same rows as `/radar` minus `undated`; `deadline_type` is `"DL"` where the row's is null (that is its semantics). |
 | POST | `/judgments` | Record a batch of triage judgments. Body below. Returns `{ applied: n, rejected: [{id, reason}], delta_stamp }`. |
-| POST | `/capture` | `{ items: [{ task, category?, notes? }], actor, source }` → `{ rows: Task[] }` with next free IDs, Status=Inbox, Recorded=today, Triaged=null. |
+| POST | `/capture` | `{ items: [{ task, category?, notes? }], actor, source }` → `{ rows: Task[], delta_stamp }` with next free IDs, Status=Inbox, Recorded=today, Triaged=null, no scores — a capture is never a judgment, whoever the actor is. Also accepted (deprecated): `{ rows: [{ task, notes?, category?, actor?, source? }] }`, normalised to `items` with the first row's actor/source standing in for missing top-level ones; the response then carries `normalized_from: "rows"`. |
 | POST | `/tasks/:id/close` | `{ actor, source, human_judgment: true, done?: date, note? }` → Task. |
 | POST | `/tasks/:id/reopen` | `{ actor, source, human_judgment: true, status: "Planned"|"Active"|"Blocked"|"Dropped", note? }` → Task. |
 | POST | `/tasks/:id/note` | `{ actor, source, text }` → Task. Appends; never overwrites. |
@@ -75,5 +76,13 @@ T-101: captured line
 ```
 Header `X-Actor` and `X-Human-Judgment: true` carry the attestation.
 
+## Auth
+v1 is single-user and sits behind Cloudflare Access (ADR-1): browser and MCP traffic carries no credential the service checks. The one exception is the optional **machine bearer** for relays that cannot log in (the Google Tasks relay, a cron):
+
+- If the Worker secret `MACHINE_TOKEN` is set and a request carries `Authorization: Bearer <MACHINE_TOKEN>`, it is a machine request: `actor` defaults to `MACHINE_ACTOR` (default `gt-relay`) when the body and `X-Actor` name none.
+- A machine request may only `GET /health`, `/registry`, `/registry/open`, `/queue`, `/radar`, `/dated` and `POST /capture`, `/tasks/:id/note`. Anything else is `403 { error: "forbidden" }` — the token cannot triage, close, reopen or flush, by construction.
+- A wrong bearer, a malformed `Authorization` header, or any bearer while `MACHINE_TOKEN` is unset → `401 { error: "unauthorized" }`. Requests without an `Authorization` header are untouched (Access is their gate).
+- Access must let the relay's requests through to the Worker: either a bypass policy scoped to those paths, or a Service Auth policy (the relay would then also send `CF-Access-Client-Id/Secret`). The bearer check is what guards the path either way.
+
 ## Errors
-`400` malformed · `403` covenant · `404` unknown id · `409` stale (`If-Match` stamp older than current) · `500`.
+`400` malformed · `401` bad or unconfigured machine bearer · `403` covenant, or a machine token outside its routes · `404` unknown id · `409` stale (`If-Match` stamp older than current) · `500`.

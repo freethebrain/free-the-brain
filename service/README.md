@@ -6,7 +6,7 @@ A Cloudflare Worker (Hono + D1) that holds the canonical registry, enforces the 
 
 | File | What it is |
 |---|---|
-| `src/app.ts` | The HTTP API. Reads derive queue/radar with `@ftb/core`; writes go through the two files below. |
+| `src/app.ts` | The HTTP API. Reads derive queue/radar/dated with `@ftb/core`; writes go through the two files below. Also the optional machine bearer (see below). |
 | `src/judgments.ts` | Judgment JSON and the widget's Send-results text → core `Change`s; the covenant check. |
 | `src/writes.ts` | The single write path: apply a `Change`, upsert the row, log the judgment event, log the pending delta line — one D1 batch. |
 | `src/archive.ts` | Builds the next `Registry Delta — …` from pending lines, or a `Task Registry — …` snapshot on compaction. |
@@ -44,7 +44,7 @@ curl 'localhost:8787/api/v1/queue?chunk=5&page=0'
 
 `npm test` at the repo root runs the core and service projects. The service tests run inside workerd with a real local D1 through `@cloudflare/vitest-pool-workers` (it installed and ran cleanly here, so there is no SQLite fallback). `vitest.config.ts` reads the migrations and `data/registry` on the Node side and hands them to the worker as bindings; the test file skips when `data/registry` is absent (it is gitignored). A fake clock drives the stamps, so the delta and snapshot filenames in the tests are deterministic.
 
-Covered: import → `GET /registry` counts; judgments with and without `human_judgment` (403 covenant, note-only allowed); `deadline: "none"`; note append; capture assigning next free IDs; the widget text format; close/reopen/note; `If-Match` → 409; `archive/pending` yields a delta that core's `parseDelta` reads and that, applied to the imported registry, reproduces the DB state; flush advances the chain; compact emits a snapshot with a verified COUNT line and resets it.
+Covered (`service.test.ts`): import → `GET /registry` counts; judgments with and without `human_judgment` (403 covenant, note-only allowed); `deadline: "none"`; note append; capture assigning next free IDs; the widget text format; close/reopen/note; `If-Match` → 409; `archive/pending` yields a delta that core's `parseDelta` reads and that, applied to the imported registry, reproduces the DB state; flush advances the chain; compact emits a snapshot with a verified COUNT line and resets it. `relay.test.ts` covers the machine bearer (401/403 surface, actor default, route scope), `GET /dated` against `/radar` and the registry, and the `{ rows }` capture shape.
 
 ## Semantics worth knowing
 
@@ -71,4 +71,12 @@ npx wrangler d1 execute DB --remote --file=.import.sql
 npx wrangler deploy
 ```
 
-Put Cloudflare Access in front of the route (ADR-1); the service has no auth code of its own.
+Put Cloudflare Access in front of the route (ADR-1); browsers and the MCP server carry nothing the service checks.
+
+## Machine bearer (the Google Tasks relay)
+
+A relay cannot sign in to Access, so the service has one optional credential of its own: `MACHINE_TOKEN`, a Worker secret (`npx wrangler secret put MACHINE_TOKEN`; locally, `.dev.vars`). A request with `Authorization: Bearer <that token>` is accepted as the machine actor `MACHINE_ACTOR` (a plain var, default `gt-relay`) when it names no actor of its own, and may only reach `GET /health|registry|registry/open|queue|radar|dated` and `POST /capture|tasks/:id/note` — everything that judges, closes, reopens or flushes is 403 for it, so a leaked token cannot triage. A wrong bearer, or any bearer while the secret is unset, is 401. Requests without an `Authorization` header are not affected: browser users still come through Access.
+
+Access still has to let those requests reach the Worker. Two ways: an Access **bypass** policy scoped to the paths the relay uses (`/api/v1/capture`, `/api/v1/dated`), with the bearer as the only guard on them; or an Access **Service Auth** policy, in which case the relay must add the `CF-Access-Client-Id` / `CF-Access-Client-Secret` headers alongside the bearer (the v2 script does not). Beware the failure mode either way: an Access-blocked request gets a 302 to the login page, and a client that follows redirects sees a 200 HTML page — the relay's POST would count that as success and advance its cursor. `integrations/google-tasks/FIT-ASSESSMENT.md` has the relay-side detail.
+
+Relay-facing endpoints: `GET /api/v1/dated` (the flat dated-rows array a mirror needs) and `POST /api/v1/capture`, which also accepts the relay's `{ rows: [...] }` shape and says so with `normalized_from: "rows"` in the response. A `source: "gtasks"` capture lands as Status=Inbox, Triaged=null, no scores, with `actor=gt-relay source=gtasks` in the `judgments` log — `test/relay.test.ts` covers all three.

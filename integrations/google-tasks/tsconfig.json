@@ -1,0 +1,8 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "types": ["node", "@cloudflare/workers-types"],
+    "paths": { "@ftb/core": ["../../packages/core/src/index.ts"] }
+  },
+  "include": ["test", "vitest.config.ts"]
+}

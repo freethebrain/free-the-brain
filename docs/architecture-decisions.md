@@ -8,6 +8,7 @@ Decisions taken 2026-09-07 to begin implementation. Each is overridable in one w
 - **Static hosting**: Cloudflare Pages for the client (`app.<domain>`) and the marketing site (`<domain>`).
 - **Auth for v1 (single user)**: Cloudflare Access (Zero Trust, free tier) in front of the app and API, restricted to FtB's Google identity. Zero auth code in v1. The MCP server uses OAuth via `@cloudflare/workers-oauth-provider` so Claude/ChatGPT can connect as custom connectors.
 - **Why**: one account, one CLI (`wrangler`), free tier covers everything at this scale, local emulation means Claude can build and test everything without any credentials. Supabase was the alternative; it needs a second vendor and its own auth layer.
+- **Addendum 2026-09-07 (machine bearer).** One exception to "zero auth code": relays that cannot sign in to Access (the Google Tasks relay, `integrations/google-tasks/`) may present `Authorization: Bearer <MACHINE_TOKEN>`; the service checks it and scopes such requests to captures, notes and reads — never a judgment or archive route. Browsers are unaffected. See `docs/api-contract.md` § Auth.
 
 ## ADR-2 — A shared `core` package
 Parser, delta applier, serialiser, date semantics and queue derivation live in `packages/core` and are consumed by the service, the client and the MCP server, so every surface derives the same queue from the same rules. Until `core` lands, the client keeps the widget's own derivation code (they are the same rules, ported from the same source).

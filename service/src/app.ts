@@ -16,11 +16,41 @@ export interface AppOptions {
   clock?: Clock;
 }
 
-type Vars = { clock: Clock };
+type Vars = { clock: Clock; machineActor: string | null };
 type App = Hono<{ Bindings: Env; Variables: Vars }>;
 type Ctx = Context<{ Bindings: Env; Variables: Vars }>;
 
 const ISO = /^\d{4}-\d{2}-\d{2}$/;
+
+/**
+ * Machine auth. Browsers reach the API through Cloudflare Access (ADR-1) and carry no bearer; a
+ * relay (the Google Tasks Apps Script, a cron) cannot log in, so it presents
+ * `Authorization: Bearer <MACHINE_TOKEN>` instead — Access must let that path through (a bypass
+ * or Service-Auth policy on the API routes it uses) and this check is what guards it. Rules:
+ * a bearer is checked only when present; a wrong one, or any bearer while MACHINE_TOKEN is unset,
+ * is 401; a right one makes the request a machine request whose actor defaults to MACHINE_ACTOR
+ * ("gt-relay") and which may only reach the routes below — never a judgment, close, reopen or
+ * archive route, so a machine token cannot triage or flush by construction. A machine request
+ * that names an actor keeps it; the token only supplies the default.
+ */
+const MACHINE_ROUTES: { method: string; path: RegExp }[] = [
+  { method: 'GET', path: /^\/api\/v1\/(health|registry|registry\/open|queue|radar|dated)$/ },
+  { method: 'POST', path: /^\/api\/v1\/capture$/ },
+  { method: 'POST', path: /^\/api\/v1\/tasks\/[^/]+\/note$/ },
+];
+const DEFAULT_MACHINE_ACTOR = 'gt-relay';
+
+/** Constant-time string equality (no early exit on the first differing byte). */
+function tokenEquals(a: string, b: string): boolean {
+  const x = new TextEncoder().encode(a);
+  const y = new TextEncoder().encode(b);
+  let diff = x.length ^ y.length;
+  for (let k = 0; k < Math.max(x.length, y.length); k++) diff |= (x[k] ?? 0) ^ (y[k] ?? 0);
+  return diff === 0;
+}
+
+class Unauthorized extends Error {}
+class Forbidden extends Error {}
 
 /** Origins allowed without configuration: the client's dev server and preview on this machine. */
 const LOCAL_ORIGIN = /^https?:\/\/(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$/;
@@ -59,10 +89,40 @@ async function envelope(c: Ctx, rows: Task[], all: Task[]) {
 }
 
 function actorSource(body: { actor?: unknown; source?: unknown }, c: Ctx): { actor: string; source: string } {
-  const actor = typeof body.actor === 'string' && body.actor ? body.actor : c.req.header('X-Actor');
+  const actor = typeof body.actor === 'string' && body.actor ? body.actor : (c.req.header('X-Actor') ?? c.get('machineActor'));
   const source = typeof body.source === 'string' && body.source ? body.source : (c.req.header('X-Source') ?? 'app');
   if (!actor) throw new BadRequest('actor is required (body.actor or X-Actor)');
   return { actor, source };
+}
+
+interface CaptureItem {
+  task?: string;
+  category?: string;
+  notes?: string;
+}
+interface CaptureBody {
+  items?: CaptureItem[];
+  /** The Google Tasks relay's shape: per-row actor/source. Normalised to `items` below. */
+  rows?: (CaptureItem & { actor?: string; source?: string })[];
+  actor?: string;
+  source?: string;
+}
+
+/**
+ * `{ rows: [{task, notes, source, actor}] }` (the relay's payload) → the contract's
+ * `{ items, actor, source }`. The first row's actor/source stand in for missing top-level ones;
+ * per-row category/notes pass through. Returns the field the body arrived in, for the envelope.
+ */
+function normaliseCapture(body: CaptureBody): { body: CaptureBody; normalizedFrom: 'rows' | null } {
+  if (Array.isArray(body.items)) return { body, normalizedFrom: null };
+  if (!Array.isArray(body.rows)) return { body, normalizedFrom: null };
+  const first = body.rows[0] ?? {};
+  const out: CaptureBody = {
+    items: body.rows.map((r) => ({ task: r?.task, category: r?.category, notes: r?.notes })),
+    actor: body.actor ?? first.actor,
+    source: body.source ?? first.source,
+  };
+  return { body: out, normalizedFrom: 'rows' };
 }
 
 /** 409 when the caller's If-Match stamp is older than the current one. */
@@ -142,6 +202,7 @@ export function createApp(opts: AppOptions = {}): App {
 
   app.use('*', async (c, next) => {
     c.set('clock', clock);
+    c.set('machineActor', null);
     await next();
   });
 
@@ -156,7 +217,27 @@ export function createApp(opts: AppOptions = {}): App {
     })
   );
 
+  // Machine bearer (see MACHINE_ROUTES). Runs after CORS so a preflight never needs a token.
+  app.use('/api/*', async (c, next) => {
+    const header = c.req.header('Authorization');
+    if (c.req.method === 'OPTIONS' || !header) return next();
+    const m = /^Bearer\s+(.+)$/i.exec(header.trim());
+    const configured = c.env.MACHINE_TOKEN;
+    if (!m) throw new Unauthorized('Authorization must be "Bearer <token>"');
+    if (!configured) throw new Unauthorized('machine auth is not configured on this service (MACHINE_TOKEN unset)');
+    if (!tokenEquals(m[1]!.trim(), configured)) throw new Unauthorized('bad machine token');
+    const actor = c.env.MACHINE_ACTOR?.trim() || DEFAULT_MACHINE_ACTOR;
+    const path = new URL(c.req.url).pathname;
+    if (!MACHINE_ROUTES.some((r) => r.method === c.req.method && r.path.test(path))) {
+      throw new Forbidden(`the machine token (${actor}) may not ${c.req.method} ${path}: captures, notes and reads only — triage is a human act`);
+    }
+    c.set('machineActor', actor);
+    return next();
+  });
+
   app.onError((err, c) => {
+    if (err instanceof Unauthorized) return c.json({ error: 'unauthorized', detail: err.message }, 401);
+    if (err instanceof Forbidden) return c.json({ error: 'forbidden', detail: err.message }, 403);
     if (err instanceof CovenantError) return c.json({ error: 'covenant', detail: err.message }, 403);
     if (err instanceof BadRequest) return c.json({ error: 'bad_request', detail: err.message }, 400);
     if (err instanceof Stale) return c.json({ error: 'stale', detail: err.message }, 409);
@@ -205,6 +286,21 @@ export function createApp(opts: AppOptions = {}): App {
     return c.json(buildRadar(all, todayFor(c), days));
   });
 
+  /**
+   * Every open row carrying a date, as the flat list the Google Tasks relay mirrors into its
+   * "PTO deadlines" list: the radar's dated sections flattened and re-sorted by date then ID.
+   * `deadline_type` is never null here — an untyped date has DL semantics (core's dstate), so it
+   * is reported as DL. Same rows as /radar minus `undated`; nothing else is derived.
+   */
+  api.get('/dated', async (c) => {
+    const all = await readAllTasks(c.env.DB);
+    const today = todayFor(c);
+    const radar = buildRadar(all, today, 14);
+    const dated = [...radar.overdue, ...radar.today_tomorrow, ...radar.fortnight, ...radar.passed_not_overdue, ...radar.further, ...radar.dormant];
+    dated.sort((a, b) => (a.deadline! < b.deadline! ? -1 : a.deadline! > b.deadline! ? 1 : a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+    return c.json(dated.map((t) => ({ id: t.id, task: t.task, deadline: t.deadline, deadline_type: t.deadline_type ?? 'DL', status: t.status })));
+  });
+
   api.post('/judgments', async (c) => {
     const batch = await readJson<JudgmentBatch>(c);
     return c.json(await applyBatch(c, batch));
@@ -224,7 +320,7 @@ export function createApp(opts: AppOptions = {}): App {
   });
 
   api.post('/capture', async (c) => {
-    const body = await readJson<{ items?: { task?: string; category?: string; notes?: string }[]; actor?: string; source?: string }>(c);
+    const { body, normalizedFrom } = normaliseCapture(await readJson<CaptureBody>(c));
     const { actor, source } = actorSource(body, c);
     if (!Array.isArray(body.items) || body.items.length === 0) throw new BadRequest('items must be a non-empty array');
     await checkIfMatch(c);
@@ -237,8 +333,11 @@ export function createApp(opts: AppOptions = {}): App {
       const id = `T-${String(next++).padStart(3, '0')}`;
       changes.push(captureChange(id, item.task.trim(), item.category, item.notes, today));
     }
+    // A capture is never a judgment: Status=Inbox, Triaged=null, no scores — whoever the actor is.
     const res = await recordChanges(c.env.DB, changes, { actor, source, human_judgment: false }, clock);
-    return c.json({ rows: res.rows, delta_stamp: res.stamp });
+    const out: Record<string, unknown> = { rows: res.rows, delta_stamp: res.stamp };
+    if (normalizedFrom) out.normalized_from = normalizedFrom; // deprecated shape accepted; send `items` + top-level actor/source
+    return c.json(out);
   });
 
   api.post('/tasks/:id/close', async (c) => {

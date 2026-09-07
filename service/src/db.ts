@@ -9,6 +9,15 @@ export interface Env {
   DB: D1Database;
   /** Comma-separated browser origins allowed to call the API (see the CORS note in app.ts). Unset = localhost only. */
   CORS_ORIGINS?: string;
+  /**
+   * Optional machine bearer token (a Worker secret). When set, a request carrying
+   * `Authorization: Bearer <MACHINE_TOKEN>` is accepted as the machine actor named by
+   * MACHINE_ACTOR; any other bearer is 401. Unset = bearers are refused; browsers come through
+   * Cloudflare Access either way. See the machine-auth note in app.ts.
+   */
+  MACHINE_TOKEN?: string;
+  /** The actor recorded for machine-token requests that name none. Default "gt-relay". */
+  MACHINE_ACTOR?: string;
 }
 
 export const META_KEYS = {

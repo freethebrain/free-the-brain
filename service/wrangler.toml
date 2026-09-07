@@ -25,6 +25,11 @@ migrations_dir = "migrations"
 # is unset only localhost / 127.0.0.1 origins are allowed. Set it to the deployed client's origin.
 # [vars]
 # CORS_ORIGINS = "https://app.example.com"
+# MACHINE_ACTOR = "gt-relay"       # actor recorded for machine-token requests that name none (default gt-relay)
+#
+# Machine bearer for relays that cannot sign in to Access (the Google Tasks relay): a SECRET, never
+# a var —  `npx wrangler secret put MACHINE_TOKEN`  (locally: MACHINE_TOKEN=… in .dev.vars). Unset
+# means every bearer is refused. See service/README.md, "Machine bearer".
 
 [observability]
 enabled = true
