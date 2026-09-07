@@ -1,0 +1,28 @@
+{
+  "name": "@free-the-brain/mcp",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Remote MCP server fronting the Free the Brain Registry Service. Triage is a human act; these tools stage it.",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx src/node.ts",
+    "build:ui": "node scripts/build-ui.mjs",
+    "typecheck": "npm run build:ui && tsc -p tsconfig.json --noEmit",
+    "test": "vitest run",
+    "worker:dev": "npm run build:ui && wrangler dev",
+    "worker:deploy": "npm run build:ui && wrangler deploy"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/ext-apps": "1.7.5",
+    "@modelcontextprotocol/sdk": "1.30.0",
+    "zod": "4.5.4"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "5.20260907.1",
+    "@types/node": "26.4.1",
+    "tsx": "4.23.13",
+    "typescript": "5.9.3",
+    "vitest": "4.1.11",
+    "wrangler": "4.129.0"
+  }
+}

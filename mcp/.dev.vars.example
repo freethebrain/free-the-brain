@@ -1,0 +1,5 @@
+# Copy to .dev.vars (gitignored) for `wrangler dev`. Secrets for production go in via `wrangler secret put`.
+MCP_TOKEN=choose-a-long-random-string
+# REGISTRY_TOKEN=
+# CF_ACCESS_CLIENT_ID=
+# CF_ACCESS_CLIENT_SECRET=

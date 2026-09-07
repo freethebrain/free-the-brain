@@ -1,0 +1,38 @@
+# Free the Brain — MCP server (Cloudflare Worker entry)
+#
+# Placeholders only: fill in before `npm run worker:deploy`. Nothing here is a real ID.
+name = "free-the-brain-mcp"
+main = "src/worker.ts"
+compatibility_date = "2026-09-01"
+compatibility_flags = ["nodejs_compat"]
+
+# The ext-apps browser bundle is inlined into the MCP App view as a string module.
+# `npm run build:ui` generates src/generated/ext-apps-bundle.txt first.
+[[rules]]
+type = "Text"
+globs = ["**/*.txt"]
+fallthrough = true
+
+[vars]
+# Origin of the Registry Service (service/), e.g. "https://api.<your-domain>" — /api/v1 is appended.
+REGISTRY_URL = "http://127.0.0.1:8787"
+# MCP_PATH = "/mcp"
+
+# Secrets — set with `wrangler secret put <NAME>`, never in this file:
+#   MCP_TOKEN                — shared bearer token (until OAuth is wired; see README "Workers and OAuth")
+#   REGISTRY_TOKEN           — optional bearer for the service, if it checks one
+#   CF_ACCESS_CLIENT_ID      — optional Cloudflare Access service token pair, if the
+#   CF_ACCESS_CLIENT_SECRET    service sits behind Access (ADR-1)
+
+# --- OAuth (not wired) --------------------------------------------------------
+# @cloudflare/workers-oauth-provider needs a KV namespace for tokens and grants.
+# Create it with `wrangler kv namespace create OAUTH_KV`, then uncomment and paste
+# the id it prints:
+# [[kv_namespaces]]
+# binding = "OAUTH_KV"
+# id = "<paste the id from wrangler kv namespace create>"
+
+# --- Routing (optional) -------------------------------------------------------
+# [[routes]]
+# pattern = "mcp.<your-domain>"
+# custom_domain = true
