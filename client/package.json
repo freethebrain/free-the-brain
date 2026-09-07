@@ -1,0 +1,23 @@
+{
+  "name": "@free-the-brain/client",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Free the Brain — the Master widget as a standalone PWA (Vite, vanilla TypeScript).",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit -p tsconfig.json && vite build",
+    "preview": "vite preview",
+    "icons": "node scripts/gen-icons.mjs",
+    "test": "vitest run",
+    "test:unit": "vitest run",
+    "test:e2e": "playwright test",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.56.1",
+    "typescript": "5.9.3",
+    "vite": "7.1.12",
+    "vitest": "4.1.11"
+  }
+}
