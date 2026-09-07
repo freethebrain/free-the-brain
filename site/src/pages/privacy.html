@@ -1,0 +1,62 @@
+<!-- @page title="Privacy policy — Free the Brain" description="What Free the Brain stores, where, and who can see it. Short version: your task text, on the owner's own Cloudflare account, shared with no one." -->
+<!-- @include head -->
+<!-- @include header -->
+<main id="main">
+  <div class="wrap page-head">
+    <h1>Privacy policy</h1>
+    <p class="muted">Effective 2026-09-07. Applies to the Free the Brain app (web and Android), the website at freethebrain.app, and the Free the Brain MCP server.</p>
+  </div>
+  <div class="wrap page-body prose">
+    <div class="callout brand">
+      <p><strong>The short version.</strong> Free the Brain stores the tasks you type and nothing else about you. That data lives in a database on the app owner's own Cloudflare account. There are no analytics, no advertising, no tracking, and nothing is sold, shared or sent to third parties. If you connect an AI assistant to the app, that is your choice and that assistant's provider sees what you send it.</p>
+    </div>
+
+    <h2>Who this covers</h2>
+    <p>Free the Brain is, in its current version, a single-user application: one account, one task registry, operated by the person who built it. This policy is written in plain language so that it is accurate today and remains accurate if the app is later opened to more people. Where it says "you", it means whoever is signed in and using the app. Where it says "the owner", it means the person who runs the app and the accounts it is hosted on.</p>
+
+    <h2>What the app stores</h2>
+    <table>
+      <thead><tr><th>Data</th><th>Why</th><th>Where</th></tr></thead>
+      <tbody>
+        <tr><td>Task text, categories, urgency and importance scores, statuses, dates (recorded, triaged, deadline, done) and notes you write</td><td>This is the task registry. It is the whole product.</td><td>A Cloudflare D1 database on the owner's Cloudflare account.</td></tr>
+        <tr><td>A record of each triage judgment: which task, which fields changed, when, and whether it was made by you or recorded on your behalf by a connected AI</td><td>So the app can tell your decisions apart from an assistant's suggestions, and refuse the latter when they overstep.</td><td>The same database.</td></tr>
+        <tr><td>Snapshot and change files of the registry, in plain-text markdown</td><td>A human-readable archive, so your data is never locked inside the app.</td><td>A folder on the owner's Google Drive.</td></tr>
+        <tr><td>A local copy of the registry and any judgments made while offline</td><td>So the app works without a connection and syncs later.</td><td>On your own device, in the app's storage. Removed when you clear the app's data or uninstall it.</td></tr>
+        <tr><td>Your sign-in identity (the e-mail address of the Google account you sign in with)</td><td>To let you in and keep everyone else out.</td><td>Checked by Cloudflare Access at the door; not copied into the registry.</td></tr>
+      </tbody>
+    </table>
+
+    <h2>What the app does not do</h2>
+    <ul>
+      <li>No analytics, no usage statistics, no crash reporting sent anywhere.</li>
+      <li>No advertising and no advertising identifiers.</li>
+      <li>No third-party SDKs that phone home. The website loads its font and images from its own domain and nothing from anyone else's.</li>
+      <li>No selling, renting, or sharing of data with anyone, for any purpose.</li>
+      <li>No reading of your contacts, location, photos, microphone or camera. The Android app asks for network access, and registers as a share target so you can send text from other apps into it; that is all.</li>
+    </ul>
+
+    <h2>Services the app runs on</h2>
+    <p>The app is hosted on <strong>Cloudflare</strong> (Workers, D1, Pages and Access) on the owner's account. Cloudflare processes the traffic between your device and the app the way any hosting provider does, under Cloudflare's own privacy policy. The archive files are written to the owner's <strong>Google Drive</strong>. Neither company receives your data for any purpose other than storing and serving the app.</p>
+
+    <h2>If you connect an AI assistant</h2>
+    <p>Free the Brain can be connected to an AI assistant — Claude, ChatGPT, or any other client that supports the Model Context Protocol (MCP) — so that the assistant can read your registry and record what you decide in conversation. This is optional and happens only when you set it up yourself with a token from your own account.</p>
+    <p>When it is connected, the task text the assistant reads and writes passes through that assistant's provider (for example Anthropic or OpenAI) and is handled under <em>their</em> privacy terms, which you accepted when you started using that assistant. Free the Brain does not send anything to an AI provider on its own, and it logs which assistant made each write so you can always see what came from where. Disconnecting the assistant in its own settings, or revoking the token, ends that access.</p>
+
+    <h2>Keeping it safe</h2>
+    <p>All traffic uses HTTPS. The app and its API sit behind Cloudflare Access, restricted to the signed-in account. The MCP server accepts only requests carrying a valid token, and refuses any write that tries to change a task's priority, status, deadline or category without an explicit attestation that the decision was made by a person. The database and archive are on accounts protected by two-factor authentication.</p>
+
+    <h2>Keeping it, and deleting it</h2>
+    <p>Your tasks are kept for as long as you want them. Nothing is deleted automatically: a task you close is marked done, a task you drop is marked dropped, and both stay in the registry as history, because the history is the point.</p>
+    <p>To delete everything, ask the owner (see contact, below) and the database and the Drive archive for your registry will be deleted within 30 days. On the device, clearing the app's data or uninstalling it removes the local copy immediately.</p>
+
+    <h2>Children</h2>
+    <p>Free the Brain is not directed at children under 16 and does not knowingly collect information from them.</p>
+
+    <h2>Changes</h2>
+    <p>If this policy changes, the new version will appear at this address with a new effective date at the top. If the change is material — for instance, if the app starts being offered to more than one person — the app will say so on first launch afterwards.</p>
+
+    <h2>Contact</h2>
+    <p>Questions about privacy, or a request to see or delete your data: <a href="mailto:privacy@freethebrain.app">privacy@freethebrain.app</a> <span class="placeholder">placeholder address until the domain is live</span>.</p>
+  </div>
+</main>
+<!-- @include footer -->

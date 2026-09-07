@@ -218,3 +218,13 @@ input::placeholder{color:var(--ink3)}
  .sendbtn{position:fixed;right:12px;bottom:calc(60px + env(safe-area-inset-bottom,0px));z-index:21;width:auto;
   padding:11px 16px;border-radius:999px;box-shadow:0 2px 8px rgba(20,15,0,.18)}
 }
+/* Native shell (Capacitor 8 is edge-to-edge on Android 15+): the page paints under the transparent
+   system bars, so the top and bottom are padded by the insets — the status bar then reads as paper
+   (or the dark variant) because it sits over --bg. env() is the standard; --safe-area-inset-* is the
+   fallback Capacitor injects for WebViews older than 140. On the plain web both resolve to 0. */
+body{padding-top:calc(18px + env(safe-area-inset-top, var(--safe-area-inset-top, 0px)))}
+@media(max-width:720px){
+ body{padding-bottom:calc(64px + 56px + env(safe-area-inset-bottom, var(--safe-area-inset-bottom, 0px)))}
+ .tabbar{padding-bottom:calc(8px + env(safe-area-inset-bottom, var(--safe-area-inset-bottom, 0px)))}
+ .sendbtn{bottom:calc(60px + env(safe-area-inset-bottom, var(--safe-area-inset-bottom, 0px)))}
+}

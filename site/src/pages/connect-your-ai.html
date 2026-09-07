@@ -1,0 +1,68 @@
+<!-- @page title="Connect your AI — Free the Brain" description="Add Free the Brain as a custom connector in Claude or ChatGPT in under five minutes. The AI stages; you judge." -->
+<!-- @include head -->
+<!-- @include header -->
+<main id="main">
+  <div class="wrap page-head">
+    <h1>Connect your AI</h1>
+    <p class="muted">Free the Brain is an MCP server. Any assistant that speaks the Model Context Protocol can read your registry, stage the next triage chunk, capture tasks from a conversation and append notes. Five minutes, two things to copy.</p>
+  </div>
+  <div class="wrap page-body prose">
+
+    <h2>The one rule</h2>
+    <div class="callout brand">
+      <p><strong>The AI stages. You judge.</strong> A connected assistant may read, order, chunk, flag, capture and take notes without asking. It may not change a task's urgency, importance, status, deadline or category on its own — those are your judgments, and the assistant can only record one after you have made it in the conversation. The server enforces this: a write that touches any of those fields without an attestation that a person decided it is refused before it reaches your data, and the refusal is visible in the chat. Suggestions are welcome — ask for "your read" and the assistant returns proposed scores as a proposal object that writes nothing. This is the whole of the agreement, and it holds for every assistant, every host, every time.</p>
+    </div>
+
+    <h2>What you need</h2>
+    <ul>
+      <li><strong>The server URL.</strong> <code>https://mcp.freethebrain.app/mcp</code> <span class="placeholder">placeholder — the real URL is shown in the app under Settings → Connect your AI</span></li>
+      <li><strong>Your access token.</strong> Generated once in the app under Settings → Connect your AI → <em>New token</em>. Treat it like a password: it lets anyone holding it read your registry. You can revoke it from the same screen at any time. <span class="placeholder">placeholder — until the settings screen ships, the owner sets the token on the server directly</span></li>
+      <li>A Claude plan that includes custom connectors (Pro, Max, Team or Enterprise), or ChatGPT with developer mode available.</li>
+    </ul>
+
+    <h2>In Claude</h2>
+    <ol class="steps">
+      <li>Open Claude on the web or desktop. Go to <strong>Settings → Connectors</strong> and choose <strong>Add custom connector</strong>.</li>
+      <li>Name it <code>Free the Brain</code>. Paste the server URL into <strong>Remote MCP server URL</strong>.</li>
+      <li>Open <strong>Advanced settings</strong> and paste your access token as the bearer token. (If your Claude build offers only OAuth sign-in for connectors, the server will ask you to sign in with the same Google account you use for the app instead.)</li>
+      <li>Save. Start a new chat, open the connectors menu (the <strong>+</strong> or tools icon by the message box) and switch <strong>Free the Brain</strong> on.</li>
+      <li>Try it: type <code>full pass status</code>. You should see how many tasks are judged this week and how many remain, by tier. Then <code>triage 5</code> — Claude stages the next five, and asks you to judge them.</li>
+    </ol>
+    <p class="fine">Claude renders the staged chunk as a small view inside the chat on web and desktop. On the phone apps you get the same chunk as text; the view is not guaranteed there yet.</p>
+
+    <h2>In ChatGPT</h2>
+    <ol class="steps">
+      <li>Open ChatGPT. Go to <strong>Settings → Connectors</strong>. If you do not see a <strong>Create</strong> button, turn on <strong>Developer mode</strong> under Settings → Connectors → Advanced first; custom MCP servers need it.</li>
+      <li>Choose <strong>Create</strong>. Name: <code>Free the Brain</code>. MCP server URL: the server URL above.</li>
+      <li>Authentication: choose the bearer-token option and paste your access token. Confirm that you trust the connector.</li>
+      <li>In a new chat, open the tools menu by the message box and enable <strong>Free the Brain</strong> (in some builds this is under "More" or "Developer mode").</li>
+      <li>Try it: <code>full pass status</code>, then <code>capture: book the dentist</code>. The second one writes a new Inbox row with the next free ID — that is the proof the connection works end to end.</li>
+    </ol>
+
+    <h2>What the assistant can do once connected</h2>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Say</th><th>What happens</th><th>Writes?</th></tr></thead>
+        <tbody>
+          <tr><td><code>full pass status</code></td><td>Progress through this week's triage cycle, by tier.</td><td>No</td></tr>
+          <tr><td><code>triage 5</code> / <code>triage</code></td><td>Stages the next five (or ten) tasks that most need a judgment, with the legend and each row's context.</td><td>No — until you judge</td></tr>
+          <tr><td><code>your read</code></td><td>Proposed urgency and importance for the current chunk, with one line of reasoning each.</td><td>No, ever</td></tr>
+          <tr><td>"T-041, urgency high, deadline in two weeks"</td><td>Records your judgment on that task, stamps it as triaged today.</td><td>Yes — as your decision</td></tr>
+          <tr><td><code>capture: …</code></td><td>New Inbox row, next free ID, nothing else filled in.</td><td>Yes</td></tr>
+          <tr><td>"note on T-023: paid 340, quoted 520"</td><td>Appends one line to that task's notes. Never overwrites.</td><td>Yes</td></tr>
+          <tr><td>"close T-023" / "reopen T-023"</td><td>Marks done or reopens — a status change, so recorded as your decision.</td><td>Yes — as your decision</td></tr>
+          <tr><td><code>radar</code></td><td>Overdue, due today or tomorrow, the next fortnight, dormant.</td><td>No</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h2>If it does not work</h2>
+    <ul>
+      <li><strong>"Unauthorized" or 401</strong> — the token is missing or wrong. Paste it again without spaces; if in doubt, revoke it in the app and make a new one.</li>
+      <li><strong>The connector saves but the tools never appear</strong> — check the URL ends in <code>/mcp</code>, and that the connector is switched on in the chat, not only saved in settings.</li>
+      <li><strong>"Refused: covenant"</strong> — the assistant tried to set a triage field without your decision. That is the rule working. Tell the assistant what you decide and it will record that.</li>
+      <li>Anything else: <a href="/support">support</a>, with the assistant's name and the exact message.</li>
+    </ul>
+  </div>
+</main>
+<!-- @include footer -->

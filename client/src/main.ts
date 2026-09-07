@@ -13,6 +13,16 @@ import { tyHint } from "./render/editor";
 import { buildResults, countJudgments } from "./results/build";
 import { copyText, setCopyState, showExportPanel, submitResults } from "./results/send";
 import { view } from "./state";
+import {
+  applyStatusBar,
+  consumeSharedText,
+  hideSplash,
+  onSharedText,
+  rescheduleDeadlineNotifications,
+  successFeedback,
+  tapFeedback,
+  watchTheme,
+} from "./native/index";
 
 const $ = (id: string) => document.getElementById(id) as HTMLElement;
 let mode: Mode = pickMode();
@@ -31,6 +41,28 @@ function addRow(): void {
   if (v) view.capVals[REG.RESERVED.length + view.extra.length - 1] = v;
   save();
   render();
+}
+
+/* Text shared into the app (Android share sheet) lands in the first empty capture row, on the Triage
+   tab, as a pending capture — recorded only when he sends, like any other capture. */
+function prefillCapture(text: string): void {
+  const ids = REG.RESERVED.concat(view.extra);
+  let n = ids.findIndex((_id, i) => !(view.capVals[i] && view.capVals[i].trim()));
+  if (n < 0) {
+    view.extra.push("T-" + String(REG.NEXTNUM + view.extra.length).padStart(3, "0"));
+    n = ids.length;
+  }
+  view.capVals[n] = text;
+  view.tab = "triage";
+  save();
+  render();
+  const box = document.querySelector<HTMLInputElement>('[data-cap="' + n + '"]');
+  if (box) box.focus();
+}
+
+/* After every registry load the phone's reminders are re-derived from the rows (no-op on the web). */
+function afterRegistryLoad(): void {
+  void rescheduleDeadlineNotifications(REG.ROWS, REG.TODAY);
 }
 
 /* ---- events ---- */
@@ -77,6 +109,7 @@ document.addEventListener("click", (e) => {
       v = sq.dataset.v as "H" | "M" | "L",
       s = pend(id);
     s[ax] = s[ax] === v ? null : v;
+    tapFeedback();
     save();
     (sq.parentNode as HTMLElement).querySelectorAll<HTMLElement>(".sq").forEach((x) => x.classList.toggle("on", x.dataset.v === s[ax]));
     syncRow(id);
@@ -85,11 +118,13 @@ document.addEventListener("click", (e) => {
   }
   const chip = t.closest<HTMLElement>(".chip[data-st]");
   if (chip) {
+    tapFeedback();
     setSt(chip.dataset.st as string, +(chip.dataset.v as string));
     return;
   }
   const dtg = t.closest<HTMLElement>(".done-t");
   if (dtg) {
+    tapFeedback();
     setSt(dtg.dataset.done as string, 4);
     return;
   }
@@ -98,6 +133,7 @@ document.addEventListener("click", (e) => {
     const id = dm.dataset.dm as string,
       s = pend(id);
     s.dm = (s.dm + 1) % 3;
+    tapFeedback();
     save();
     dm.textContent = MODES[s.dm];
     dm.className = "dlmode" + (s.dm ? " m" + s.dm : "");
@@ -112,6 +148,7 @@ document.addEventListener("click", (e) => {
     const id = ty.dataset.ty as string,
       s = pend(id);
     s.ty = ty.dataset.v as "DL" | "SO" | "SB";
+    tapFeedback();
     save();
     (ty.parentNode as HTMLElement).querySelectorAll<HTMLElement>(".ty").forEach((x) => x.classList.toggle("on", x.dataset.v === s.ty));
     const h = document.querySelector('.tyhint[data-tyh="' + id + '"]');
@@ -258,9 +295,11 @@ $("sendbtn").onclick = async () => {
     if (out.rejected.length) line += " · " + out.rejected.length + " rejected: " + out.rejected.map((x) => x.id + " (" + x.reason + ")").join(", ");
     forgetPending();
     hideNotice();
+    successFeedback();
     try {
       setRegistry(await loadRegistry(mode));
       setProvenance();
+      afterRegistryLoad();
     } catch (e) {
       line += " · reload failed: " + ((e as Error).message || String(e));
     }
@@ -295,6 +334,16 @@ async function boot(): Promise<void> {
   restore();
   render();
   document.body.dataset.ready = "1";
+  /* Native shell (every call is a no-op on the web): splash off once something is on screen, status
+     bar icons matched to the theme, reminders re-derived, and any text the app was opened with by
+     the share sheet placed in a capture row. */
+  hideSplash();
+  applyStatusBar();
+  watchTheme();
+  afterRegistryLoad();
+  const shared = await consumeSharedText();
+  if (shared) prefillCapture(shared);
+  onSharedText(prefillCapture);
 }
 
 boot().catch((e) => {

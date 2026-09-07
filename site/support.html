@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Support — Free the Brain</title>
+<meta name="description" content="How to get help with Free the Brain, and answers to the questions that come up first.">
+<meta name="color-scheme" content="light dark">
+<meta name="theme-color" content="#8e9dfa">
+<link rel="icon" href="/assets/favicon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="/assets/apple-touch-icon.png">
+<link rel="canonical" href="https://freethebrain.app/support">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Free the Brain">
+<meta property="og:title" content="Support — Free the Brain">
+<meta property="og:description" content="How to get help with Free the Brain, and answers to the questions that come up first.">
+<meta property="og:image" content="https://freethebrain.app/assets/social-1024x500.png">
+<meta property="og:image:width" content="1024">
+<meta property="og:image:height" content="500">
+<link rel="preload" href="/fonts/LilitaOne-Regular.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="/styles.css">
+</head>
+<body class="page-support">
+<a class="skip" href="#main">Skip to content</a>
+<header class="site-header">
+  <div class="wrap bar">
+    <a class="brand" href="/">
+      <img src="/assets/brain-mark.svg" alt="" width="44" height="32">
+      <span class="display">Free the Brain</span>
+    </a>
+    <nav aria-label="Site">
+      <a href="/connect-your-ai">Connect your AI</a>
+      <a href="/support" aria-current="page">Support</a>
+      <a href="/privacy">Privacy</a>
+      <a class="btn btn-sm" href="https://app.freethebrain.app">Open the app</a>
+    </nav>
+  </div>
+</header>
+<main id="main">
+  <div class="wrap page-head">
+    <h1>Support</h1>
+    <p class="muted">One person builds and runs this. Write plainly and you will get a plain answer.</p>
+  </div>
+  <div class="wrap page-body prose">
+    <div class="callout brand">
+      <p><strong>Get in touch:</strong> <a href="mailto:support@freethebrain.app">support@freethebrain.app</a> <span class="placeholder">placeholder address until the domain is live</span>. Say which surface you were on — web app, Android app, or an AI connector — and what you expected to happen.</p>
+    </div>
+
+    <h2>What Free the Brain is</h2>
+    <p>A task registry with a strong opinion about how to use it: capture instantly and without ceremony; sort it out later, in small doses, in an order the app works out for you; and let the AI assistant you already use do the reading and staging while you keep every judgment. It grew out of a personal system that ran for months on plain text files, and it still writes those files as its archive.</p>
+
+    <h2>Questions that come up first</h2>
+
+    <h3>Can I sign up?</h3>
+    <p>Not yet. Version 1 is a single-user app: one account, one registry, its author's. The web app, the Android app and the MCP server are all built so that opening it up later is a matter of accounts, not a rewrite, but that phase has not started. If you would like to be told when it does, send a one-line e-mail to the address above.</p>
+
+    <h3>Does it work offline?</h3>
+    <p>Yes. The app keeps a local copy of the registry and queues the judgments you make while disconnected; they are sent when you are back online. If the same task was changed in two places, the most recent human action wins.</p>
+
+    <h3>Where is my data?</h3>
+    <p>On the owner's own Cloudflare account, with a plain-text archive on the owner's Google Drive, and a local copy on your device. Nothing is shared with anyone. The <a href="/privacy">privacy policy</a> lists it all in one table.</p>
+
+    <h3>How do I connect Claude or ChatGPT?</h3>
+    <p>Follow <a href="/connect-your-ai">Connect your AI</a>. It should take under five minutes; if the page makes you guess at a step, that is a bug in the page — please report it.</p>
+
+    <h3>The AI changed a priority I did not ask for.</h3>
+    <p>It should not be able to. Every write that touches urgency, importance, status, deadline or category is refused by the server unless it carries an attestation that a person made the decision. If you see it happen, that is the most important bug report you can send: include the task ID, the assistant you used, and roughly when.</p>
+
+    <h3>How do I delete my data?</h3>
+    <p>Ask by e-mail. The database and the archive copy are deleted within 30 days. Uninstalling the app removes the local copy at once.</p>
+
+    <h3>Something is wrong with the Android app.</h3>
+    <p>Say which phone and Android version, and whether the web app at <a href="https://app.freethebrain.app">app.freethebrain.app</a> shows the same problem — the Android app is the web app in a native shell, so that one check halves the search.</p>
+
+    <h2>Status</h2>
+    <p>There is no status page yet. If the app is unreachable and the e-mail address gets no reply within two days, the web app address above is the fallback — it is served separately from the API.</p>
+  </div>
+</main>
+<div class="stripes" aria-hidden="true"></div>
+<footer class="site-footer">
+  <div class="wrap foot">
+    <p class="foot-brand"><img src="/assets/brain-mark.svg" alt="" width="33" height="24"> <span class="display">Free the Brain</span></p>
+    <nav aria-label="Footer">
+      <a href="/connect-your-ai">Connect your AI</a>
+      <a href="/support">Support</a>
+      <a href="/privacy">Privacy</a>
+      <a href="https://app.freethebrain.app">Open the app</a>
+    </nav>
+    <p class="fine">Made by one person for one brain, then opened up. No analytics, no tracking, nothing loaded from anyone else's servers.</p>
+  </div>
+</footer>
+</body>
+</html>
