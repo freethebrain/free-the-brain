@@ -56,6 +56,40 @@ describe.skipIf(!hasRegistry)('registry service', () => {
     expect(body.rows).toBeGreaterThanOrEqual(0); // SELF has its own isolated storage; the shape is what matters
   });
 
+  it('answers CORS for the client origin (preflight + actual), and not for a foreign one', async () => {
+    // The client is served from another origin (Pages / vite) and its POSTs carry custom headers.
+    const pre = await app.request(
+      '/api/v1/judgments/text',
+      {
+        method: 'OPTIONS',
+        headers: {
+          Origin: 'http://localhost:5173',
+          'Access-Control-Request-Method': 'POST',
+          'Access-Control-Request-Headers': 'content-type,x-actor,x-human-judgment',
+        },
+      },
+      env
+    );
+    expect(pre.status).toBe(204);
+    expect(pre.headers.get('Access-Control-Allow-Origin')).toBe('http://localhost:5173');
+    expect(pre.headers.get('Access-Control-Allow-Headers')).toMatch(/X-Human-Judgment/);
+    expect(pre.headers.get('Access-Control-Allow-Methods')).toMatch(/POST/);
+
+    const actual = await app.request('/api/v1/health', { headers: { Origin: 'http://localhost:4173' } }, env);
+    expect(actual.status).toBe(200);
+    expect(actual.headers.get('Access-Control-Allow-Origin')).toBe('http://localhost:4173');
+    expect(actual.headers.get('Access-Control-Allow-Credentials')).toBe('true');
+
+    const foreign = await app.request('/api/v1/health', { headers: { Origin: 'https://evil.example' } }, env);
+    expect(foreign.headers.get('Access-Control-Allow-Origin')).toBeNull();
+
+    // With CORS_ORIGINS configured, only the listed origins pass — localhost no longer does.
+    const configured = await app.request('/api/v1/health', { headers: { Origin: 'https://app.example.com' } }, { ...env, CORS_ORIGINS: 'https://app.example.com' });
+    expect(configured.headers.get('Access-Control-Allow-Origin')).toBe('https://app.example.com');
+    const local = await app.request('/api/v1/health', { headers: { Origin: 'http://localhost:5173' } }, { ...env, CORS_ORIGINS: 'https://app.example.com' });
+    expect(local.headers.get('Access-Control-Allow-Origin')).toBeNull();
+  });
+
   it('import → GET /registry reports the folded counts and next free ID', async () => {
     const { status, body } = await api('/registry?today=2026-09-07');
     expect(status).toBe(200);

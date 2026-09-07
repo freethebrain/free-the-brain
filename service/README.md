@@ -53,6 +53,7 @@ Covered: import → `GET /registry` counts; judgments with and without `human_ju
 - **Done.** `status: "Done"` or `"Dropped"` sets `done = today`; reopening clears it.
 - **IDs.** Next free top-level ID is one past the highest ever used; gaps and dropped IDs are never reused. Captures in the widget text keep the reserved ID they name if it is still free, else take the next free one; the response's `captured` lists what was assigned.
 - **Stamps.** `delta_stamp` in write responses is the Europe/Sofia minute of the write (`meta.current_stamp`). Archive filenames take their stamp at flush time from the server clock; a flush inside the same minute as the previous archive file is refused with 409 rather than reuse a stamp.
+- **CORS.** The client is another origin (Pages, or `vite` on :5173 / `vite preview` on :4173), so `/api/*` answers CORS for an allowlist: `CORS_ORIGINS` (comma-separated, in `wrangler.toml` `[vars]` or `--var`) when set, else localhost / 127.0.0.1 on any port. Origins are never reflected blindly — with Access in front the browser sends the Access cookie. Found in the 2026-09-07 integration pass: without it the browser's fetch failed (`net::ERR_FAILED`) and the client fell back to the fixture, with the service worker later masking it as `503 offline`.
 - **Archive state.** `meta.last_snapshot_stamp` is the base every delta names; `meta.prior_deltas` (JSON) is the "Prior deltas:" line; `meta.delta_count` drives `compact_due` in `GET /archive/pending` (threshold 5, per the protocol). Flushing is never automatic.
 
 ## Getting the files into Drive
@@ -61,7 +62,7 @@ Covered: import → `GET /registry` counts; judgments with and without `human_ju
 
 ## Deploying
 
-Fill `account_id` (optional) and `database_id` in `wrangler.toml` (see the comments there), then:
+Fill `account_id` (optional) and `database_id` in `wrangler.toml` (see the comments there), set `CORS_ORIGINS` in `[vars]` to the deployed client's origin, then:
 
 ```sh
 npx wrangler d1 create ftb-registry            # once; paste the id into wrangler.toml

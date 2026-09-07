@@ -7,6 +7,8 @@ import { sortById } from '@ftb/core';
 
 export interface Env {
   DB: D1Database;
+  /** Comma-separated browser origins allowed to call the API (see the CORS note in app.ts). Unset = localhost only. */
+  CORS_ORIGINS?: string;
 }
 
 export const META_KEYS = {

@@ -6,6 +6,7 @@ import type { Change, Task } from '@ftb/core';
 import { buildQueue, buildRadar, chunkQueue, countRows, cycleMonday, nextFreeId, reservedIds, sofiaToday } from '@ftb/core';
 import { Hono } from 'hono';
 import type { Context } from 'hono';
+import { cors } from 'hono/cors';
 import { buildPendingDelta, flush, NothingPending, StampCollision } from './archive.ts';
 import { getMeta, META_KEYS, readAllTasks, readTask, type Env } from './db.ts';
 import { BadRequest, checkCovenant, CovenantError, judgmentToChange, parseSendResults, type Judgment, type JudgmentBatch, type Rejection } from './judgments.ts';
@@ -20,6 +21,23 @@ type App = Hono<{ Bindings: Env; Variables: Vars }>;
 type Ctx = Context<{ Bindings: Env; Variables: Vars }>;
 
 const ISO = /^\d{4}-\d{2}-\d{2}$/;
+
+/** Origins allowed without configuration: the client's dev server and preview on this machine. */
+const LOCAL_ORIGIN = /^https?:\/\/(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$/;
+
+/**
+ * The client (Pages, `app.<domain>`; `vite` on :5173 / `vite preview` on :4173 locally) is a
+ * different origin from the Worker, so every browser call is cross-origin and the POSTs carry
+ * custom headers (X-Actor, X-Human-Judgment) that force a preflight. Allowed origins come from
+ * `CORS_ORIGINS` (comma-separated) in the Worker's vars; when it is unset only localhost origins
+ * are allowed. Origins are never reflected blindly: with Cloudflare Access in front the browser
+ * sends the Access cookie, and an open allowlist with credentials would let any site act as him.
+ */
+function allowedOrigin(origin: string, configured: string | undefined): string | null {
+  const list = (configured ?? '').split(',').map((s) => s.trim()).filter(Boolean);
+  if (list.length ? list.includes(origin) : LOCAL_ORIGIN.test(origin)) return origin;
+  return null;
+}
 
 function todayFor(c: Ctx, explicit?: string | null): string {
   if (explicit && ISO.test(explicit)) return explicit;
@@ -126,6 +144,17 @@ export function createApp(opts: AppOptions = {}): App {
     c.set('clock', clock);
     await next();
   });
+
+  app.use(
+    '/api/*',
+    cors({
+      origin: (origin, c) => allowedOrigin(origin, (c.env as Env).CORS_ORIGINS),
+      allowMethods: ['GET', 'POST', 'OPTIONS'],
+      allowHeaders: ['Content-Type', 'Accept', 'Authorization', 'If-Match', 'X-Actor', 'X-Source', 'X-Human-Judgment'],
+      credentials: true,
+      maxAge: 600,
+    })
+  );
 
   app.onError((err, c) => {
     if (err instanceof CovenantError) return c.json({ error: 'covenant', detail: err.message }, 403);
