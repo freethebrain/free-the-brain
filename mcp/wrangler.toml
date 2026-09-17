@@ -1,7 +1,10 @@
 # Free the Brain — MCP server (Cloudflare Worker entry)
 #
-# Placeholders only: fill in before `npm run worker:deploy`. Nothing here is a real ID.
+# account_id and REGISTRY_URL are the real ones (filled 2026-09-09). Secrets never live here:
+# CI sets them from GitHub secrets (.github/workflows/deploy.yml), or set them once on the Worker's
+# Settings → Variables and Secrets page.
 name = "free-the-brain-mcp"
+account_id = "0fb9effb6f6efb07ec8d9408fe0cb562"
 main = "src/worker.ts"
 compatibility_date = "2026-09-01"
 compatibility_flags = ["nodejs_compat"]
@@ -14,8 +17,9 @@ globs = ["**/*.txt"]
 fallthrough = true
 
 [vars]
-# Origin of the Registry Service (service/), e.g. "https://api.<your-domain>" — /api/v1 is appended.
-REGISTRY_URL = "http://127.0.0.1:8787"
+# Origin of the Registry Service (service/) — /api/v1 is appended. Swap for api.freethebrain.app
+# once the domain is bought and mapped.
+REGISTRY_URL = "https://ftb-registry-service.christo-edrev.workers.dev"
 # MCP_PATH = "/mcp"
 
 # Secrets — set with `wrangler secret put <NAME>`, never in this file:
