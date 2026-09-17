@@ -44,7 +44,7 @@ curl 'localhost:8787/api/v1/queue?chunk=5&page=0'
 
 `npm test` at the repo root runs the core and service projects. The service tests run inside workerd with a real local D1 through `@cloudflare/vitest-pool-workers` (it installed and ran cleanly here, so there is no SQLite fallback). `vitest.config.ts` reads the migrations and `data/registry` on the Node side and hands them to the worker as bindings; the test file skips when `data/registry` is absent (it is gitignored). A fake clock drives the stamps, so the delta and snapshot filenames in the tests are deterministic.
 
-Covered (`service.test.ts`): import → `GET /registry` counts; judgments with and without `human_judgment` (403 covenant, note-only allowed); `deadline: "none"`; note append; capture assigning next free IDs; the widget text format; close/reopen/note; `If-Match` → 409; `archive/pending` yields a delta that core's `parseDelta` reads and that, applied to the imported registry, reproduces the DB state; flush advances the chain; compact emits a snapshot with a verified COUNT line and resets it. `relay.test.ts` covers the machine bearer (401/403 surface, actor default, route scope), `GET /dated` against `/radar` and the registry, and the `{ rows }` capture shape.
+Covered (`service.test.ts`): import → `GET /registry` counts; judgments with and without `human_judgment` (403 covenant, note-only allowed); `deadline: "none"`; note append; capture assigning next free IDs; the widget text format; close/reopen/note; `If-Match` → 409; `archive/pending` yields a delta that core's `parseDelta` reads and that, applied to the imported registry, reproduces the DB state; flush advances the chain; compact emits a snapshot with a verified COUNT line and resets it. `relay.test.ts` covers the machine bearer (401/403 surface, actor default, route scope), `GET /dated` against `/radar` and the registry, and the `{ rows }` capture shape. `owner.test.ts` covers owner-token mode: owner full access with the `ftb` default actor, no-header 401 on every route but `/health` and the preflight, the machine token's unchanged scope, and Access mode untouched when `OWNER_TOKEN` is unset.
 
 ## Semantics worth knowing
 
@@ -71,7 +71,22 @@ npx wrangler d1 execute DB --remote --file=.import.sql
 npx wrangler deploy
 ```
 
-Put Cloudflare Access in front of the route (ADR-1); browsers and the MCP server carry nothing the service checks.
+Put Cloudflare Access in front of the route (ADR-1); browsers and the MCP server then carry nothing the service checks. Until Access is set up, run in **owner-token mode** (next section) — never deploy the API open.
+
+### Deploying from the Cloudflare dashboard (no wrangler)
+
+`npx wrangler deploy --dry-run --outdir=deploy/service` produces a single-file bundle, `deploy/service/index.js`, that the dashboard's Worker editor accepts as-is (Workers & Pages → Create → Worker → Edit code, paste, Deploy; then Settings → Bindings → add the D1 binding `DB`, Settings → Variables → `CORS_ORIGINS`, and Settings → Variables → Secrets → `OWNER_TOKEN`, `MACHINE_TOKEN`). Set the compatibility date and the `nodejs_compat` flag under Settings → Runtime to match `wrangler.toml`. The D1 console (D1 → your database → Console) accepts multiple `;`-terminated statements: paste `deploy/service-migrations.sql` first, then `deploy/service-seed.sql`; `GET /api/v1/health` should then report the seed's row count.
+
+## Owner bearer — owner-token mode, until Access
+
+With no Access in front of the Worker the API would be open to anyone who finds the URL. So the service has a second credential of its own: `OWNER_TOKEN`, a Worker secret. Setting it flips the service into owner-token mode:
+
+- `Authorization: Bearer <OWNER_TOKEN>` is the owner: every route, full access; `actor` defaults to `OWNER_ACTOR` (a plain var, default `ftb`), `source` to `app`. The covenant is unchanged — a token is not a `human_judgment` attestation.
+- Every route except `GET /api/v1/health` and the CORS preflight requires a valid bearer (owner or machine). A request with no `Authorization` header is `401 { error: "unauthorized" }`, with the CORS headers so the app can read it and ask for the token in its Settings panel.
+- The machine bearer (below) keeps exactly its scope; both comparisons are constant-time and both run on every request.
+- Unset `OWNER_TOKEN` and the service is back in Access mode, exactly as before.
+
+Generate a long random token (`openssl rand -base64 32`), set it as the secret, and paste the same value into the app's Settings (API base URL + owner token, kept in the browser's local storage) and into the MCP server's `REGISTRY_TOKEN` secret.
 
 ## Machine bearer (the Google Tasks relay)
 

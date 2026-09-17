@@ -143,7 +143,7 @@ describe('applyChanges', () => {
 });
 
 describe.skipIf(!hasRegistry)('the real delta chain', () => {
-  it('applies the nine later deltas and matches the last declared counts', () => {
+  it('applies every later delta and matches the last declared counts', () => {
     const files = loadRegistryFiles();
     const reg = resolveRegistry(files);
     expect(reg.baseStamp).toBe(BASE_STAMP);

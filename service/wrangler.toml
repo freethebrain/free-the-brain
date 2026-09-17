@@ -1,10 +1,9 @@
 # Cloudflare Worker config for the Registry Service.
 #
-# What FtB must fill in before `wrangler deploy` (local dev and tests need none of it):
-#   account_id  — from the Cloudflare dashboard (Workers & Pages → Overview, right-hand column),
-#                 or leave it out and let `wrangler login` pick the account interactively.
-#   database_id — from `wrangler d1 create ftb-registry` (prints the id) or the D1 dashboard page.
-# The placeholders below are deliberately not valid ids; wrangler's local mode ignores them.
+# account_id and database_id are the real ones (filled 2026-09-09 after the D1 database was created,
+# migrated and seeded through the dashboard). Local dev and tests ignore them. Secrets never live
+# here: CI sets them from GitHub secrets (.github/workflows/deploy.yml), or set them once on the
+# Worker's Settings → Variables and Secrets page.
 
 name = "ftb-registry-service"
 main = "src/index.ts"
@@ -13,23 +12,29 @@ main = "src/index.ts"
 compatibility_date = "2026-08-01"
 compatibility_flags = ["nodejs_compat"]
 
-# account_id = "REPLACE_WITH_CLOUDFLARE_ACCOUNT_ID"
+account_id = "0fb9effb6f6efb07ec8d9408fe0cb562"
 
 [[d1_databases]]
 binding = "DB"                       # available as env.DB in the Worker
-database_name = "ftb-registry"       # the name you gave `wrangler d1 create`
-database_id = "REPLACE_WITH_D1_DATABASE_ID"
+database_name = "ftb-registry"       # created 2026-09-09; migrations applied, 168 rows seeded
+database_id = "b0d6f548-e6fb-4ab0-a8ec-463dd1e1eeee"
 migrations_dir = "migrations"
 
 # Browser origins allowed to call the API (CORS), comma-separated. Local dev needs nothing: when this
-# is unset only localhost / 127.0.0.1 origins are allowed. Set it to the deployed client's origin.
-# [vars]
-# CORS_ORIGINS = "https://app.example.com"
+# is unset only localhost / 127.0.0.1 origins are allowed — so once it IS set the dev origins must be
+# listed explicitly, which is why Vite's 5173/4173 appear below. app.freethebrain.app is the future
+# custom domain; harmless until it exists.
+[vars]
+CORS_ORIGINS = "https://freethebrain-app.christo-edrev.workers.dev,https://app.freethebrain.app,http://localhost:5173,http://localhost:4173"
 # MACHINE_ACTOR = "gt-relay"       # actor recorded for machine-token requests that name none (default gt-relay)
+# OWNER_ACTOR = "ftb"              # actor recorded for owner-token requests that name none (default ftb)
 #
-# Machine bearer for relays that cannot sign in to Access (the Google Tasks relay): a SECRET, never
-# a var —  `npx wrangler secret put MACHINE_TOKEN`  (locally: MACHINE_TOKEN=… in .dev.vars). Unset
-# means every bearer is refused. See service/README.md, "Machine bearer".
+# Secrets (never vars):
+#   MACHINE_TOKEN — bearer for relays that cannot sign in to Access (the Google Tasks relay).
+#                   `npx wrangler secret put MACHINE_TOKEN` (locally: MACHINE_TOKEN=… in .dev.vars).
+#                   Unset means every machine bearer is refused. See service/README.md, "Machine bearer".
+#   OWNER_TOKEN   — owner-token mode, until Access. When set, that bearer is the owner with full access
+#                   and EVERY route except GET /api/v1/health requires a bearer; unset = Access mode.
 
 [observability]
 enabled = true

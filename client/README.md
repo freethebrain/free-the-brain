@@ -13,13 +13,19 @@ npm run preview
 npm run icons                    # regenerate public/icons/* (no image library needed)
 ```
 
-`VITE_API_BASE` — base URL of the Registry Service (no trailing slash), e.g. `VITE_API_BASE=http://localhost:8787 npm run dev`. Copy `.env.example` to `.env.local` to set it permanently. When unset, api mode uses the same origin (`/api/v1/...`). Every API request goes through `apiFetch` (`src/data/loader.ts`) with `credentials: "include"`, so the Cloudflare Access session cookie travels when the app and the API sit on different origins; same-origin is unaffected. The service's CORS answer must then name the exact app origin and send `Access-Control-Allow-Credentials: true`.
+`VITE_API_BASE` — build-time default base URL of the Registry Service (no trailing slash), e.g. `VITE_API_BASE=http://localhost:8787 npm run dev`. Copy `.env.example` to `.env.local` to set it permanently. When unset, api mode uses the same origin (`/api/v1/...`). Every API request goes through `apiFetch` (`src/data/loader.ts`) with `credentials: "include"`, so the Cloudflare Access session cookie travels when the app and the API sit on different origins; same-origin is unaffected. The service's CORS answer must then name the exact app origin and send `Access-Control-Allow-Credentials: true`.
+
+## Settings — API base and owner token
+
+The gear (`#setbtn`) at the end of the controls row opens a quiet panel (`#settings`) with two fields: **API base URL** (default from `VITE_API_BASE`, else empty = same origin) and **Owner token** (a password field). Both live in `localStorage`, under stable keys — `ftb.settings.apiBase` and `ftb.settings.ownerToken` — so the deployed build (`VITE_API_BASE=""`) is pointed at the service at runtime, and the same build serves any origin. A stored base selects api mode even on localhost; an empty value removes the key and the build-time default applies again.
+
+The owner token is the service's "owner-token mode, until Access" credential (`docs/api-contract.md` § Auth): when stored it travels as `Authorization: Bearer …` on every request — the registry load and every write. When no token is stored (or a wrong one is) and the service answers 401, the app does **not** fall back to the fixture: the notice says "Open Settings and paste your owner token", the panel opens, and the page shows an empty live registry until the token is saved. Saving reloads the registry in place. A 401 on Send keeps the judgments and says the same in the state line. The service worker never caches a non-2xx API response, so a 401 is never replayed offline. `src/persist/settings.ts` holds the keys and the storage fallback; `tests/unit/settings.test.ts` and `tests/e2e/settings.spec.ts` cover it.
 
 ## Two data modes
 
 | Mode | When | Source |
 |---|---|---|
-| `api` | `?src=api`, or by default when the hostname is not `localhost` or `VITE_API_BASE` is set | `GET ${VITE_API_BASE}/api/v1/registry`; `TODAY` from the device clock in Europe/Sofia; `STAMP`, `RESERVED` and `NEXTNUM` from the envelope. If the service cannot be reached the app falls back to the fixture and says so in the notice line. |
+| `api` | `?src=api`, or by default when the hostname is not `localhost` or an API base is set (Settings, else `VITE_API_BASE`) | `GET ${VITE_API_BASE}/api/v1/registry`; `TODAY` from the device clock in Europe/Sofia; `STAMP`, `RESERVED` and `NEXTNUM` from the envelope. If the service cannot be reached the app falls back to the fixture and says so in the notice line. |
 | `fixture` | `?src=fixture`, or by default on `localhost` | `public/fixture.json` — 25 open rows across all seven categories, every status, DL/SO/SB dates, subtasks to depth 2, seven Done rows and one Dropped, all synthetic and dated relative to a frozen `TODAY` of 2026-09-07. Same envelope shape as the API. |
 
 Mapping (`src/data/loader.ts`): the API `Task` becomes the widget row `id task cat u i st rec tri dl ty kind d note blk` — `d` is the number of dots in the id; `ty` from `deadline_type`, `kind` from `deadline_kind`; `blk` for Blocked rows is the API's `blocker` if set, else the text after "waiting on" / "blocked on" in the notes, else null. Done rows become `DONE` (`id task cat done`); Dropped rows are closed and not displayed (the widget's `DONE` list is dated by completion).
@@ -54,7 +60,7 @@ src/
   render/            html.ts, item.ts, editor.ts, portfolio.ts, radar.ts, eisenhower.ts, waiting.ts, done.ts, triage.ts, index.ts
   editor/            pending.ts (the pending store), sync.ts (syncRow / setSt — in-place updates)
   results/           build.ts (buildResults — the output contract), send.ts (clipboard + API submit)
-  persist/           store.ts (localStorage keyed by stamp, with the template's fallbacks)
+  persist/           store.ts (localStorage keyed by stamp, with the template's fallbacks), settings.ts (API base + owner token)
 public/              fixture.json, manifest.webmanifest, sw.js, icons/
 scripts/gen-icons.mjs  placeholder icons drawn and PNG-encoded with Node's zlib only
 tests/unit, tests/e2e
@@ -64,7 +70,7 @@ DOM ids, class names, CSS custom properties and `data-*` attributes are the temp
 
 ## PWA
 
-`public/manifest.webmanifest` (name "Free the Brain", short name "FreeBrain", theme `#8e9dfa`, background `#fbfaf8`, standalone) and `public/sw.js` — cache-first for the app shell, network-first for `/api/` with the last good response as the offline fallback. The service worker is registered in production builds only. Icons are placeholders: a periwinkle disc with a simple pink brain-like blob, generated by `scripts/gen-icons.mjs` — no external artwork.
+`public/manifest.webmanifest` (name "Free the Brain", short name "FreeBrain", theme `#8e9dfa`, background `#fbfaf8`, standalone) and `public/sw.js` — cache-first for the app shell, network-first for `/api/` with the last good (2xx) response as the offline fallback; error responses, 401 included, are never cached. The service worker is registered in production builds only. Icons are placeholders: a periwinkle disc with a simple pink brain-like blob, generated by `scripts/gen-icons.mjs` — no external artwork.
 
 ## Deliberate changes from the template
 
@@ -79,3 +85,4 @@ Everything else is the template's behaviour, ported line for line.
 7. `body[data-ready="1"]` is set after the first render, for the tests to wait on.
 8. **`+ Capture`** in the controls row (`#capbtn`, `#quickcap`, `#quickbox`) — the template's capture rows live only on the Triage tab; the box makes the same store reachable from every tab.
 9. **The export panel's helper line** is dynamic (`#expnote`): the template's paste instruction in the clipboard flow, `Recorded — your judgments are in the registry.` after a live send.
+10. **Settings** (`#setbtn`, `#settings`): API base URL and owner token, kept in `localStorage`; a 401 from the service opens the panel instead of showing the fixture.

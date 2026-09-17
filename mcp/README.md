@@ -39,7 +39,7 @@ Environment (Node entry):
 |---|---|
 | `MCP_TOKEN` | Shared bearer token every MCP request must carry. **Unset = every request refused with 401**; the server never runs open by accident. |
 | `REGISTRY_URL` | Origin of the Registry Service; `/api/v1` is appended. Default `http://127.0.0.1:8787` (wrangler dev of `service/`). |
-| `REGISTRY_TOKEN` | Optional bearer forwarded to the service. |
+| `REGISTRY_TOKEN` | Bearer forwarded to the service as `Authorization: Bearer …` on **every** request, reads included. Required when the service runs in owner-token mode (its `OWNER_TOKEN`, see `docs/api-contract.md` § Auth); optional behind Access. A 401 from the service surfaces as a tool error that names the fix. |
 | `CF_ACCESS_CLIENT_ID` / `CF_ACCESS_CLIENT_SECRET` | Optional Cloudflare Access service-token pair, forwarded as `CF-Access-Client-Id/-Secret` when the service sits behind Access (ADR-1). |
 | `PORT`, `HOST`, `MCP_PATH` | Defaults `8788`, `127.0.0.1`, `/mcp`. |
 
@@ -108,7 +108,7 @@ npx tsx scripts/worker-smoke.ts                       # terminal 2
 
 One Workers-specific bug was found and fixed along the way: storing `fetch` as a method and calling it with a foreign `this` throws "Illegal invocation" under workerd (`src/client.ts` wraps it).
 
-`wrangler.toml` carries placeholder comments, no real IDs. Before deploying: set `REGISTRY_URL` in `[vars]`, `wrangler secret put MCP_TOKEN` (and `REGISTRY_TOKEN` / `CF_ACCESS_CLIENT_*` if the service needs them), then `npm run worker:deploy`. `.dev.vars.example` lists the secrets for local `wrangler dev`.
+`npm run bundle` writes a self-contained `deploy/mcp/worker.js` (wrangler's dry-run output with the ext-apps Text module inlined by `scripts/inline-bundle.mjs`) for pasting into the dashboard's Worker editor — set `REGISTRY_URL` as a variable, `MCP_TOKEN` and `REGISTRY_TOKEN` as secrets, and the `nodejs_compat` flag. `wrangler.toml` carries placeholder comments, no real IDs. Before deploying: set `REGISTRY_URL` in `[vars]`, `wrangler secret put MCP_TOKEN` (and `REGISTRY_TOKEN` / `CF_ACCESS_CLIENT_*` if the service needs them), then `npm run worker:deploy`. `.dev.vars.example` lists the secrets for local `wrangler dev`.
 
 ### Workers and OAuth — the hook, not the flow
 

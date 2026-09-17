@@ -51,6 +51,15 @@ input::placeholder{color:var(--ink3)}
 .export .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:8px}
 .export .state{font-size:12.5px;color:var(--ink2)}
 .export .expnote{font-size:12px;color:var(--ink3);margin:6px 0 0}
+.tbtn.gear{padding:6px 9px;font-size:14px;line-height:1;color:var(--ink3)}
+.tbtn.gear.on{color:var(--ink)}
+.settings{background:var(--card);border:.5px solid var(--hair);border-radius:12px;padding:12px 14px;margin:-6px 0 14px;box-shadow:var(--shadow)}
+.settings .field{display:flex;flex-direction:column;gap:4px;margin-bottom:10px}
+.settings .field span{font-size:11px;font-weight:650;letter-spacing:.03em;text-transform:uppercase;color:var(--ink3)}
+.settings .field input{max-width:none;width:100%;font:inherit;color:var(--ink);background:var(--bg);border:.5px solid var(--hair);border-radius:8px;padding:9px 12px}
+.settings .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.settings .state{font-size:12.5px;color:var(--ink2)}
+.settings .expnote{font-size:12px;color:var(--ink3);margin:6px 0 0}
 .notice{font-size:12px;color:var(--ink2);background:var(--card);border:.5px solid var(--hair);border-radius:8px;padding:7px 10px;margin:-6px 0 12px;display:none}
 .notice.on{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
 .notice b{color:var(--teal)}

@@ -16,22 +16,35 @@ export interface AppOptions {
   clock?: Clock;
 }
 
-type Vars = { clock: Clock; machineActor: string | null };
+type Vars = { clock: Clock; bearerActor: string | null; principal: Principal };
+/** Who a request is, once the bearer middleware has run. `null` = no bearer (Access mode traffic). */
+type Principal = 'owner' | 'machine' | null;
 type App = Hono<{ Bindings: Env; Variables: Vars }>;
 type Ctx = Context<{ Bindings: Env; Variables: Vars }>;
 
 const ISO = /^\d{4}-\d{2}-\d{2}$/;
 
 /**
- * Machine auth. Browsers reach the API through Cloudflare Access (ADR-1) and carry no bearer; a
- * relay (the Google Tasks Apps Script, a cron) cannot log in, so it presents
- * `Authorization: Bearer <MACHINE_TOKEN>` instead — Access must let that path through (a bypass
- * or Service-Auth policy on the API routes it uses) and this check is what guards it. Rules:
- * a bearer is checked only when present; a wrong one, or any bearer while MACHINE_TOKEN is unset,
- * is 401; a right one makes the request a machine request whose actor defaults to MACHINE_ACTOR
- * ("gt-relay") and which may only reach the routes below — never a judgment, close, reopen or
- * archive route, so a machine token cannot triage or flush by construction. A machine request
- * that names an actor keeps it; the token only supplies the default.
+ * Bearer auth — two tokens, two modes.
+ *
+ * Machine bearer (either mode). A relay (the Google Tasks Apps Script, a cron) cannot log in to
+ * Access, so it presents `Authorization: Bearer <MACHINE_TOKEN>` — Access must let that path
+ * through (a bypass or Service-Auth policy on the API routes it uses) and this check is what
+ * guards it. Rules: a bearer is checked whenever present; a wrong one, or any bearer while no
+ * token is configured, is 401; a right one makes the request a machine request whose actor
+ * defaults to MACHINE_ACTOR ("gt-relay") and which may only reach MACHINE_ROUTES — never a
+ * judgment, close, reopen or archive route, so a machine token cannot triage or flush by
+ * construction. A machine request that names an actor keeps it; the token only supplies the
+ * default.
+ *
+ * Owner bearer — "owner-token mode, until Access". Access mode (OWNER_TOKEN unset, the design of
+ * record, ADR-1) assumes something in front of the Worker authenticates browsers, so a request
+ * without a bearer passes. When nothing sits in front — the dashboard deploy, Access not yet set
+ * up — the service must protect itself: set the OWNER_TOKEN secret and (a) a request carrying it
+ * is the owner, full access, actor defaulting to OWNER_ACTOR ("ftb"), source from the body or
+ * "app"; and (b) every route except `GET /api/v1/health` and the CORS preflight REQUIRES a valid
+ * bearer, owner or machine — no Authorization header is 401. The machine token keeps exactly its
+ * Access-mode scope. Unset OWNER_TOKEN and the behaviour is Access mode again, unchanged.
  */
 const MACHINE_ROUTES: { method: string; path: RegExp }[] = [
   { method: 'GET', path: /^\/api\/v1\/(health|registry|registry\/open|queue|radar|dated)$/ },
@@ -39,6 +52,8 @@ const MACHINE_ROUTES: { method: string; path: RegExp }[] = [
   { method: 'POST', path: /^\/api\/v1\/tasks\/[^/]+\/note$/ },
 ];
 const DEFAULT_MACHINE_ACTOR = 'gt-relay';
+const DEFAULT_OWNER_ACTOR = 'ftb';
+const HEALTH_PATH = '/api/v1/health';
 
 /** Constant-time string equality (no early exit on the first differing byte). */
 function tokenEquals(a: string, b: string): boolean {
@@ -89,7 +104,7 @@ async function envelope(c: Ctx, rows: Task[], all: Task[]) {
 }
 
 function actorSource(body: { actor?: unknown; source?: unknown }, c: Ctx): { actor: string; source: string } {
-  const actor = typeof body.actor === 'string' && body.actor ? body.actor : (c.req.header('X-Actor') ?? c.get('machineActor'));
+  const actor = typeof body.actor === 'string' && body.actor ? body.actor : (c.req.header('X-Actor') ?? c.get('bearerActor'));
   const source = typeof body.source === 'string' && body.source ? body.source : (c.req.header('X-Source') ?? 'app');
   if (!actor) throw new BadRequest('actor is required (body.actor or X-Actor)');
   return { actor, source };
@@ -202,7 +217,8 @@ export function createApp(opts: AppOptions = {}): App {
 
   app.use('*', async (c, next) => {
     c.set('clock', clock);
-    c.set('machineActor', null);
+    c.set('bearerActor', null);
+    c.set('principal', null);
     await next();
   });
 
@@ -217,21 +233,40 @@ export function createApp(opts: AppOptions = {}): App {
     })
   );
 
-  // Machine bearer (see MACHINE_ROUTES). Runs after CORS so a preflight never needs a token.
+  // Bearer auth (see the note above MACHINE_ROUTES). Runs after CORS so a preflight never needs a token.
   app.use('/api/*', async (c, next) => {
+    if (c.req.method === 'OPTIONS') return next();
     const header = c.req.header('Authorization');
-    if (c.req.method === 'OPTIONS' || !header) return next();
-    const m = /^Bearer\s+(.+)$/i.exec(header.trim());
-    const configured = c.env.MACHINE_TOKEN;
-    if (!m) throw new Unauthorized('Authorization must be "Bearer <token>"');
-    if (!configured) throw new Unauthorized('machine auth is not configured on this service (MACHINE_TOKEN unset)');
-    if (!tokenEquals(m[1]!.trim(), configured)) throw new Unauthorized('bad machine token');
-    const actor = c.env.MACHINE_ACTOR?.trim() || DEFAULT_MACHINE_ACTOR;
+    const ownerToken = c.env.OWNER_TOKEN?.trim() || undefined;
+    const machineToken = c.env.MACHINE_TOKEN?.trim() || undefined;
     const path = new URL(c.req.url).pathname;
+    if (!header) {
+      // Owner-token mode: nothing sits in front of the Worker, so an unauthenticated request only
+      // reaches /health. Access mode: it passes — Access already authenticated the browser.
+      if (ownerToken && !(c.req.method === 'GET' && path === HEALTH_PATH)) {
+        throw new Unauthorized('this service is in owner-token mode (until Access): send Authorization: Bearer <OWNER_TOKEN>');
+      }
+      return next();
+    }
+    const m = /^Bearer\s+(.+)$/i.exec(header.trim());
+    if (!m) throw new Unauthorized('Authorization must be "Bearer <token>"');
+    if (!ownerToken && !machineToken) throw new Unauthorized('bearer auth is not configured on this service (OWNER_TOKEN unset, MACHINE_TOKEN unset)');
+    const given = m[1]!.trim();
+    // Both comparisons always run, constant-time each, so the response time does not say which token exists.
+    const isOwner = ownerToken ? tokenEquals(given, ownerToken) : false;
+    const isMachine = machineToken ? tokenEquals(given, machineToken) : false;
+    if (isOwner) {
+      c.set('principal', 'owner');
+      c.set('bearerActor', c.env.OWNER_ACTOR?.trim() || DEFAULT_OWNER_ACTOR);
+      return next();
+    }
+    if (!isMachine) throw new Unauthorized('bad bearer token');
+    const actor = c.env.MACHINE_ACTOR?.trim() || DEFAULT_MACHINE_ACTOR;
     if (!MACHINE_ROUTES.some((r) => r.method === c.req.method && r.path.test(path))) {
       throw new Forbidden(`the machine token (${actor}) may not ${c.req.method} ${path}: captures, notes and reads only — triage is a human act`);
     }
-    c.set('machineActor', actor);
+    c.set('principal', 'machine');
+    c.set('bearerActor', actor);
     return next();
   });
 

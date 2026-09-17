@@ -15,7 +15,10 @@ import type {
 export interface RegistryClientOptions {
   /** Origin of the service, e.g. http://127.0.0.1:8787 — /api/v1 is appended unless already present. */
   baseUrl: string;
-  /** Optional bearer token forwarded to the service as Authorization. */
+  /**
+   * Optional bearer forwarded to the service as `Authorization: Bearer …` on EVERY request, reads
+   * included — the service's OWNER_TOKEN in owner-token mode (docs/api-contract.md § Auth).
+   */
   token?: string;
   /** Optional Cloudflare Access service-token pair, forwarded as CF-Access-Client-Id / -Secret. */
   cfAccessClientId?: string;
@@ -80,6 +83,12 @@ export class RegistryClient {
         typeof parsed === 'object' && parsed !== null
           ? ((parsed as { detail?: string; error?: string }).detail ?? (parsed as { error?: string }).error ?? text)
           : text;
+      if (res.status === 401) {
+        const hint = this.headers.authorization
+          ? 'the REGISTRY_TOKEN this MCP server sends was refused — set it to the service\'s OWNER_TOKEN'
+          : 'the service requires a bearer and this MCP server has no REGISTRY_TOKEN configured — set the REGISTRY_TOKEN secret to the service\'s OWNER_TOKEN';
+        throw new RegistryError(res.status, parsed, `Registry Service ${method} ${path} → 401 unauthorized: ${detail}. ${hint}.`);
+      }
       throw new RegistryError(res.status, parsed, `Registry Service ${method} ${path} → ${res.status}: ${detail}`);
     }
     return parsed as T;

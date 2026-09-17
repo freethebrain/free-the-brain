@@ -2,11 +2,12 @@
    editor controls work inside any row on any tab without per-element listeners. */
 import "./styles.css";
 import { CAPS, MODES, type TabId } from "./constants";
-import { loadRegistry, pickMode, type Mode } from "./data/loader";
+import { Unauthorized, loadRegistry, pickMode, type Mode } from "./data/loader";
 import { REG, findRow, setRegistry } from "./data/registry";
 import { offsetDate } from "./derive/dates";
 import { pend } from "./editor/pending";
 import { setSt, syncRow } from "./editor/sync";
+import { getSettings, saveSettings } from "./persist/settings";
 import { forgetPending, hideNotice, restore, save, setNotice } from "./persist/store";
 import { render, updateChrome } from "./render/index";
 import { tyHint } from "./render/editor";
@@ -90,6 +91,49 @@ function quickCapture(): void {
   if (view.tab === "triage") render();
   else updateChrome();
   input.focus();
+}
+
+/* ---- Settings: API base URL + owner token (persist/settings.ts). A quiet panel under the toolbar. ---- */
+function settingsOpen(): boolean {
+  return !($("settings") as HTMLElement).hidden;
+}
+
+function openSettings(): void {
+  const s = getSettings();
+  ($("set-api") as HTMLInputElement).value = s.apiBase;
+  ($("set-token") as HTMLInputElement).value = s.ownerToken;
+  $("set-state").textContent = s.ownerToken ? "A token is stored." : "No token stored.";
+  ($("settings") as HTMLElement).hidden = false;
+  $("setbtn").classList.add("on");
+  ($("set-token") as HTMLInputElement).focus();
+}
+
+function closeSettings(): void {
+  ($("settings") as HTMLElement).hidden = true;
+  $("setbtn").classList.remove("on");
+}
+
+/* Save, then reload the registry from the (possibly new) service in place. */
+async function saveSettingsAndReload(): Promise<void> {
+  saveSettings({ apiBase: ($("set-api") as HTMLInputElement).value, ownerToken: ($("set-token") as HTMLInputElement).value });
+  $("set-state").textContent = "Saved · reloading the registry…";
+  mode = pickMode();
+  try {
+    setRegistry(await loadRegistry(mode));
+    hideNotice();
+    setProvenance();
+    restore();
+    render();
+    afterRegistryLoad();
+    closeSettings();
+  } catch (e) {
+    $("set-state").textContent = "Saved, but the registry did not load: " + describeLoadError(e);
+  }
+}
+
+function describeLoadError(e: unknown): string {
+  if (e instanceof Unauthorized) return e.hadToken ? "the service refused the stored owner token (HTTP 401)." : "the service requires an owner token (HTTP 401).";
+  return ((e as Error).message || String(e)) + ".";
 }
 
 /* After every registry load the phone's reminders are re-derived from the rows (no-op on the web). */
@@ -245,6 +289,19 @@ document.addEventListener("click", (e) => {
     clearAll();
     return;
   }
+  if (t.id === "setbtn" || t.id === "noticesettings") {
+    if (settingsOpen() && t.id === "setbtn") closeSettings();
+    else openSettings();
+    return;
+  }
+  if (t.id === "set-save") {
+    void saveSettingsAndReload();
+    return;
+  }
+  if (t.id === "set-cancel") {
+    closeSettings();
+    return;
+  }
 });
 
 document.addEventListener("input", (e) => {
@@ -300,10 +357,15 @@ document.addEventListener("input", (e) => {
 });
 
 document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape" && settingsOpen()) {
+    closeSettings();
+    return;
+  }
   if (e.key !== "Enter") return;
   const id = (e.target as HTMLElement).id;
   if (id === "addbox") addRow();
   if (id === "quickbox") quickCapture();
+  if (id === "set-api" || id === "set-token") void saveSettingsAndReload();
 });
 
 $("subtoggle").onclick = () => {
@@ -347,7 +409,8 @@ $("sendbtn").onclick = async () => {
     setExportNote(NOTE_RECORDED);
   } else {
     /* Never lose judgments on a failed send: the store is untouched; hand the text over by clipboard instead. */
-    copyText(txt, "Send failed — " + (out.error || "unknown error") + ". Judgments kept. ");
+    const hint = /^HTTP 401\b/.test(out.error || "") ? " Open Settings and paste your owner token." : "";
+    copyText(txt, "Send failed — " + (out.error || "unknown error") + ". Judgments kept." + hint + " ");
   }
 };
 $("copybtn").onclick = () => {
@@ -363,6 +426,24 @@ async function boot(): Promise<void> {
   try {
     setRegistry(await loadRegistry(mode));
   } catch (e) {
+    if (mode === "api" && e instanceof Unauthorized) {
+      /* Owner-token mode on the service and no (or a wrong) token here: nothing is shown but the way in.
+         Never the fixture — a synthetic registry under a "live" label would invite judging fake rows. */
+      setNotice(
+        (e.hadToken ? "The registry service refused the stored owner token (HTTP 401). " : "The registry service requires an owner token (HTTP 401). ") +
+          "Open Settings and paste your owner token." +
+          '<button class="tbtn" id="noticesettings">Open Settings</button>',
+        false,
+      );
+      setProvenance();
+      render();
+      document.body.dataset.ready = "1";
+      hideSplash();
+      applyStatusBar();
+      watchTheme();
+      openSettings();
+      return;
+    }
     if (mode === "api") {
       /* An unreachable service is not a reason to show nothing: fall back to the fixture and say so. */
       mode = "fixture";

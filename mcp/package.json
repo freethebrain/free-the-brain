@@ -10,7 +10,8 @@
     "typecheck": "npm run build:ui && tsc -p tsconfig.json --noEmit",
     "test": "vitest run",
     "worker:dev": "npm run build:ui && wrangler dev",
-    "worker:deploy": "npm run build:ui && wrangler deploy"
+    "worker:deploy": "npm run build:ui && wrangler deploy",
+    "bundle": "npm run build:ui && wrangler deploy --dry-run --outdir=../deploy/mcp && node scripts/inline-bundle.mjs ../deploy/mcp"
   },
   "dependencies": {
     "@ftb/core": "0.1.0",

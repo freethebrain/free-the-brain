@@ -16,6 +16,9 @@ export const LATER_DELTAS = [
   '2026-09-06-1438',
   '2026-09-06-1442',
   '2026-09-06-1445',
+  '2026-09-07-2350',
+  '2026-09-08-0025',
+  '2026-09-09-0656',
 ];
 
 export const hasRegistry = existsSync(join(REGISTRY_DIR, `Task Registry — ${BASE_STAMP}.md`));
