@@ -2,7 +2,7 @@
 // registry files (handed in as a binding by vitest.config.ts). Nothing here touches the network.
 import { env, SELF } from 'cloudflare:test';
 import type { Task } from '@ftb/core';
-import { applyChanges, countRows, parseDelta, parseSnapshot, resolveRegistry, stampToTimestamp } from '@ftb/core';
+import { applyChanges, countRows, parseDelta, parseSnapshot, resolveRegistry, sortById, stampToTimestamp } from '@ftb/core';
 import { beforeAll, describe, expect, it } from 'vitest';
 import { createApp } from '../src/app.ts';
 import { runImport } from '../src/import.ts';
@@ -93,15 +93,15 @@ describe.skipIf(!hasRegistry)('registry service', () => {
   it('import → GET /registry reports the folded counts and next free ID', async () => {
     const { status, body } = await api('/registry?today=2026-09-07');
     expect(status).toBe(200);
-    expect(body.counts).toEqual({ open: 82, done: 73, dropped: 2, total: 157 });
-    expect(body.rows).toHaveLength(157);
-    expect(body.stamp).toBe('2026-09-06-1445');
+    expect(body.counts).toEqual({ open: 93, done: 73, dropped: 2, total: 168 });
+    expect(body.rows).toHaveLength(168);
+    expect(body.stamp).toBe('2026-09-09-0656');
     expect(body.next_free_id).toBe('T-103');
     expect(body.reserved).toEqual(['T-103', 'T-104', 'T-105']);
     expect(body.today).toBe(TODAY);
     const open = await api('/registry/open');
-    expect(open.body.rows).toHaveLength(82);
-    expect(open.body.counts.total).toBe(157);
+    expect(open.body.rows).toHaveLength(93);
+    expect(open.body.counts.total).toBe(168);
   });
 
   it('GET /queue and /radar have the contract shape', async () => {
@@ -206,7 +206,7 @@ describe.skipIf(!hasRegistry)('registry service', () => {
     expect(res.body.rows[1].notes).toContain('from a brain-dump');
     const reg = await api('/registry');
     expect(reg.body.next_free_id).toBe('T-107');
-    expect(reg.body.counts.total).toBe(161);
+    expect(reg.body.counts.total).toBe(172);
   });
 
   it('close / reopen / note on a single task; 404 for unknown ids', async () => {
@@ -249,9 +249,9 @@ describe.skipIf(!hasRegistry)('registry service', () => {
     const delta = parseDelta(pending.body.content, { filename: pending.body.filename });
     expect(delta.warnings).toEqual([]);
     expect(delta.baseStamp).toBe('2026-08-31-1137');
-    expect(delta.priorDeltas).toHaveLength(9);
+    expect(delta.priorDeltas).toHaveLength(12);
     expect(delta.changes.length).toBe(pending.body.changes);
-    expect(delta.forNextCompaction).toMatch(/161 total/);
+    expect(delta.forNextCompaction).toMatch(/172 total/);
 
     const imported = resolveRegistry(files).rows;
     const replayed = applyChanges(imported, delta.changes, { updatedAt: stampToTimestamp(delta.stamp) });
@@ -261,14 +261,19 @@ describe.skipIf(!hasRegistry)('registry service', () => {
       return rest;
     };
     const db = ((await api('/registry')).body.rows as Task[]).map(strip);
-    expect(replayed.rows.map(strip)).toEqual(db);
+    // The API returns rows sorted by id; a replay keeps the order the changes arrived in, so the
+    // comparison sorts both sides rather than asserting the replay's insertion order.
+    expect(sortById(replayed.rows).map(strip)).toEqual(db);
   });
 
   it('flush emits the delta and advances the chain; compact emits a verified snapshot', async () => {
+    // Past the newest delta in data/registry (2026-09-09-0656): a flush stamped before the head of
+    // the chain is a stale write and is refused, which is the behaviour the 409 below checks.
+    clock.set('2026-09-10T07:00:00Z');
     const first = await json('POST', '/archive/flush', {});
     expect(first.status).toBe(200);
     expect(first.body.kind).toBe('delta');
-    expect(first.body.filename).toBe('Registry Delta — 2026-09-07-1000.md');
+    expect(first.body.filename).toBe('Registry Delta — 2026-09-10-1000.md');
 
     const empty = await json('POST', '/archive/flush', {});
     expect(empty.status).toBe(400);
@@ -279,27 +284,27 @@ describe.skipIf(!hasRegistry)('registry service', () => {
     const collide = await json('POST', '/archive/flush', {});
     expect(collide.status).toBe(409);
 
-    clock.set('2026-09-07T07:01:00Z');
+    clock.set('2026-09-10T07:01:00Z');
     const view = await api('/archive/pending');
-    expect(view.body.content).toContain('Prior deltas: 2026-08-31-1153, 2026-09-01-2014, 2026-09-01-2104, 2026-09-03-2321, 2026-09-03-2322, 2026-09-04-1425, 2026-09-06-1438, 2026-09-06-1442, 2026-09-06-1445, 2026-09-07-1000');
-    expect(view.body.delta_count).toBe(10);
+    expect(view.body.content).toContain('Prior deltas: 2026-08-31-1153, 2026-09-01-2014, 2026-09-01-2104, 2026-09-03-2321, 2026-09-03-2322, 2026-09-04-1425, 2026-09-06-1438, 2026-09-06-1442, 2026-09-06-1445, 2026-09-07-2350, 2026-09-08-0025, 2026-09-09-0656, 2026-09-10-1000');
+    expect(view.body.delta_count).toBe(13);
 
     const snap = await json('POST', '/archive/flush', { compact: true });
     expect(snap.status).toBe(200);
     expect(snap.body.kind).toBe('snapshot');
-    expect(snap.body.filename).toBe('Task Registry — 2026-09-07-1001.md');
+    expect(snap.body.filename).toBe('Task Registry — 2026-09-10-1001.md');
     const parsed = parseSnapshot(snap.body.content, { filename: snap.body.filename });
-    expect(parsed.rows).toHaveLength(161);
+    expect(parsed.rows).toHaveLength(172);
     expect(parsed.counts).toEqual(countRows(parsed.rows));
     expect(parsed.nextFreeId).toBe('T-107');
     expect(snap.body.content).toContain('COUNT — independently verified');
     expect(snap.body.content).toContain('Written by: Free the Brain service');
 
-    clock.set('2026-09-07T07:02:00Z');
+    clock.set('2026-09-10T07:02:00Z');
     const after = await api('/archive/pending');
     expect(after.body.changes).toBe(0);
     expect(after.body.delta_count).toBe(0);
-    expect(after.body.content).toContain('Base: Task Registry — 2026-09-07-1001.md');
+    expect(after.body.content).toContain('Base: Task Registry — 2026-09-10-1001.md');
     expect(after.body.content).toContain('Prior deltas: (none)');
   });
 });

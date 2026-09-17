@@ -21,10 +21,11 @@ database_id = "b0d6f548-e6fb-4ab0-a8ec-463dd1e1eeee"
 migrations_dir = "migrations"
 
 # Browser origins allowed to call the API (CORS), comma-separated. Local dev needs nothing: when this
-# is unset only localhost / 127.0.0.1 origins are allowed. The second origin is the future custom
-# domain; harmless until it exists.
+# is unset only localhost / 127.0.0.1 origins are allowed — so once it IS set the dev origins must be
+# listed explicitly, which is why Vite's 5173/4173 appear below. app.freethebrain.app is the future
+# custom domain; harmless until it exists.
 [vars]
-CORS_ORIGINS = "https://freethebrain-app.christo-edrev.workers.dev,https://app.freethebrain.app"
+CORS_ORIGINS = "https://freethebrain-app.christo-edrev.workers.dev,https://app.freethebrain.app,http://localhost:5173,http://localhost:4173"
 # MACHINE_ACTOR = "gt-relay"       # actor recorded for machine-token requests that name none (default gt-relay)
 # OWNER_ACTOR = "ftb"              # actor recorded for owner-token requests that name none (default ftb)
 #

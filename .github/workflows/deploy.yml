@@ -1,0 +1,85 @@
+# Deploys the two CODE workers — the Registry Service and the MCP server — from main.
+#
+# Why this exists: the build sessions cannot reach Cloudflare's API (organisation egress policy),
+# and the dashboard's code editor is a cross-origin iframe that cannot be typed into. The two
+# STATIC workers (site/, client/) are uploaded through the dashboard instead and are not touched
+# here. GitHub Actions has no such restriction, so a push to main deploys the code workers.
+#
+# One-time setup, FtB's step (Settings → Secrets and variables → Actions → New repository secret):
+#   CLOUDFLARE_API_TOKEN   a token with Workers Scripts:Edit and D1:Edit on account
+#                          0fb9effb6f6efb07ec8d9408fe0cb562
+#   FTB_OWNER_TOKEN        a long random string; the owner bearer for the service (owner-token mode)
+#   FTB_MACHINE_TOKEN      a second random string; the bearer the Google Tasks relay uses
+#   FTB_MCP_TOKEN          a third random string; the bearer the MCP client sends
+# Account and database ids live in the wrangler.toml files, not here. No secret is ever printed.
+#
+# Run it: push to main, or Actions → Deploy workers → Run workflow.
+
+name: Deploy workers
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'service/**'
+      - 'mcp/**'
+      - 'packages/**'
+      - '.github/workflows/deploy.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-workers
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install (workspace root installs every package)
+        run: npm ci
+
+      - name: Typecheck and test
+        run: |
+          npm run typecheck
+          npm test
+
+      # D1 migrations are idempotent (CREATE TABLE IF NOT EXISTS) and were already applied by hand
+      # on 2026-09-09; this keeps a fresh database in step without touching the seeded rows.
+      - name: Apply D1 migrations
+        working-directory: service
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: npx wrangler d1 migrations apply DB --remote
+
+      - name: Service — set secrets and deploy
+        working-directory: service
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          printf '%s' "${{ secrets.FTB_OWNER_TOKEN }}"   | npx wrangler secret put OWNER_TOKEN
+          printf '%s' "${{ secrets.FTB_MACHINE_TOKEN }}" | npx wrangler secret put MACHINE_TOKEN
+          npx wrangler deploy
+
+      - name: MCP — build UI bundle, set secrets and deploy
+        working-directory: mcp
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          npm run build:ui
+          printf '%s' "${{ secrets.FTB_MCP_TOKEN }}"   | npx wrangler secret put MCP_TOKEN
+          printf '%s' "${{ secrets.FTB_OWNER_TOKEN }}" | npx wrangler secret put REGISTRY_TOKEN
+          npx wrangler deploy
+
+      - name: Smoke test the deployed service
+        run: |
+          set -e
+          url=https://ftb-registry-service.christo-edrev.workers.dev/api/v1/health
+          code=$(curl -s -o /dev/null -w '%{http_code}' "$url")
+          echo "health -> $code"
+          test "$code" = "200"
