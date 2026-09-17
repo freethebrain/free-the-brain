@@ -7,3 +7,4 @@ data/registry/
 .DS_Store
 coverage/
 .import.sql
+deploy/

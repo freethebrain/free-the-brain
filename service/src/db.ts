@@ -18,6 +18,16 @@ export interface Env {
   MACHINE_TOKEN?: string;
   /** The actor recorded for machine-token requests that name none. Default "gt-relay". */
   MACHINE_ACTOR?: string;
+  /**
+   * Optional owner bearer token (a Worker secret) — "owner-token mode, until Access". When set, a
+   * request carrying `Authorization: Bearer <OWNER_TOKEN>` has full access as the owner (actor
+   * defaults to OWNER_ACTOR, "ftb"), AND every route except GET /health and the CORS preflight
+   * requires a valid bearer (owner or machine): the service protects itself because nothing sits
+   * in front of it. Unset = Access mode, exactly the behaviour described above.
+   */
+  OWNER_TOKEN?: string;
+  /** The actor recorded for owner-token requests that name none. Default "ftb". */
+  OWNER_ACTOR?: string;
 }
 
 export const META_KEYS = {

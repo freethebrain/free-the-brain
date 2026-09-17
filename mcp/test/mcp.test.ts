@@ -300,3 +300,88 @@ describe('full_pass_status', () => {
     expect(fake.writes()).toHaveLength(0);
   });
 });
+
+describe('REGISTRY_TOKEN → the service bearer (owner-token mode, until Access)', () => {
+  const OWNER = 'owner-secret-for-mcp';
+  let ownerFake: FakeService;
+  let withToken: { http: Server; client: Client };
+  let withoutToken: { http: Server; client: Client };
+
+  async function startMcp(registryToken: string | undefined): Promise<{ http: Server; client: Client }> {
+    const http = createNodeServer({ registryUrl: ownerFake.url, registryToken, mcpToken: TOKEN, today: FIXTURE_TODAY });
+    const url = await listen(http, 0);
+    const c = new Client({ name: 'test-host', version: '0.0.0' });
+    await c.connect(new StreamableHTTPClientTransport(new URL(`${url}/mcp`), { requestInit: { headers: { authorization: `Bearer ${TOKEN}` } } }));
+    return { http, client: c };
+  }
+
+  beforeAll(async () => {
+    ownerFake = await startFakeService({ ownerToken: OWNER });
+    withToken = await startMcp(OWNER);
+    withoutToken = await startMcp(undefined);
+  });
+  afterAll(async () => {
+    for (const s of [withToken, withoutToken]) {
+      await s.client.close().catch(() => undefined);
+      await new Promise<void>((r) => s.http.close(() => r()));
+    }
+    await ownerFake.close();
+  });
+  beforeEach(() => {
+    ownerFake.requests.length = 0;
+  });
+
+  it('is sent as Authorization: Bearer on every request, reads and writes alike', async () => {
+    const c = withToken.client;
+    const calls: [string, Record<string, unknown>][] = [
+      ['registry_read', {}],
+      ['registry_queue', {}],
+      ['registry_radar', {}],
+      ['triage_stage', {}],
+      ['full_pass_status', {}],
+      ['capture_add', { actor: 'claude', items: [{ task: 'Bearer on a write' }] }],
+      ['note_append', { actor: 'claude', id: 'T-041', text: 'bearer on a note' }],
+      ['triage_record', { actor: 'claude', human_judgment: true, judgments: [{ id: 'T-052', u: 'M' }] }],
+    ];
+    for (const [name, args] of calls) {
+      const r = (await c.callTool({ name, arguments: args })) as ToolResult;
+      expect(r.isError, `${name}: ${textOf(r)}`).toBeFalsy();
+    }
+    expect(ownerFake.requests.length).toBeGreaterThanOrEqual(calls.length);
+    for (const req of ownerFake.requests) expect(req.headers.authorization, `${req.method} ${req.path}`).toBe(`Bearer ${OWNER}`);
+    expect(ownerFake.requests.some((r) => r.method === 'GET')).toBe(true);
+    expect(ownerFake.requests.some((r) => r.method === 'POST')).toBe(true);
+  });
+
+  it('without REGISTRY_TOKEN a 401 from the service surfaces as a clear tool error naming the fix, and nothing is written', async () => {
+    const c = withoutToken.client;
+    for (const [name, args] of [
+      ['registry_read', {}],
+      ['triage_stage', {}],
+      ['capture_add', { actor: 'claude', items: [{ task: 'must not land' }] }],
+      ['triage_record', { actor: 'claude', human_judgment: true, judgments: [{ id: 'T-052', u: 'H' }] }],
+    ] as [string, Record<string, unknown>][]) {
+      const r = (await c.callTool({ name, arguments: args })) as ToolResult;
+      expect(r.isError, name).toBe(true);
+      expect(textOf(r)).toMatch(/401 unauthorized/);
+      expect(textOf(r)).toMatch(/owner-token mode/);
+      expect(textOf(r)).toMatch(/no REGISTRY_TOKEN configured/);
+      expect(r.structuredContent).toMatchObject({ error: 401 });
+    }
+    expect(ownerFake.rows.find((r) => r.task === 'must not land')).toBeUndefined();
+    expect(ownerFake.rows.find((r) => r.id === 'T-052')?.u).toBe('M'); // as the test above left it
+    expect(ownerFake.requests.every((r) => r.headers.authorization === undefined)).toBe(true);
+  });
+
+  it('a wrong REGISTRY_TOKEN says so', async () => {
+    const s = await startMcp('stale');
+    try {
+      const r = (await s.client.callTool({ name: 'registry_read', arguments: {} })) as ToolResult;
+      expect(r.isError).toBe(true);
+      expect(textOf(r)).toMatch(/REGISTRY_TOKEN this MCP server sends was refused/);
+    } finally {
+      await s.client.close().catch(() => undefined);
+      await new Promise<void>((r) => s.http.close(() => r()));
+    }
+  });
+});

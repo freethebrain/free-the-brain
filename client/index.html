@@ -23,6 +23,13 @@
   <button class="tbtn" id="clearbtn" title="Discard every unsent judgment">Clear unsent</button>
   <button class="tbtn" id="capbtn" title="Capture a task from any tab">+ Capture</button>
   <button class="tbtn sendbtn" id="sendbtn">Send results<span class="n" id="sendn"></span></button>
+  <button class="tbtn gear" id="setbtn" title="Settings — API base URL and owner token" aria-label="Settings">⚙</button>
+</div>
+<div class="settings" id="settings" hidden>
+  <label class="field"><span>API base URL</span><input type="url" id="set-api" placeholder="https://ftb-registry-service.example.workers.dev (empty = same origin)" autocomplete="off" spellcheck="false"></label>
+  <label class="field"><span>Owner token</span><input type="password" id="set-token" placeholder="paste the OWNER_TOKEN secret" autocomplete="off"></label>
+  <div class="row"><button class="tbtn" id="set-save">Save</button><button class="tbtn" id="set-cancel">Cancel</button><span class="state" id="set-state"></span></div>
+  <p class="expnote">Kept in this browser only. The token travels as a bearer on every request to the registry service — owner-token mode, until Access.</p>
 </div>
 <div class="quickcap" id="quickcap">
   <input type="text" id="quickbox" placeholder="Capture a task… Enter adds it to Send results" autocomplete="off">

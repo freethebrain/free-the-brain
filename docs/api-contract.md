@@ -77,12 +77,23 @@ T-101: captured line
 Header `X-Actor` and `X-Human-Judgment: true` carry the attestation.
 
 ## Auth
-v1 is single-user and sits behind Cloudflare Access (ADR-1): browser and MCP traffic carries no credential the service checks. The one exception is the optional **machine bearer** for relays that cannot log in (the Google Tasks relay, a cron):
+Two modes, chosen by whether the Worker secret `OWNER_TOKEN` is set.
+
+**Access mode** (`OWNER_TOKEN` unset — the design of record, ADR-1). v1 is single-user and sits behind Cloudflare Access: browser and MCP traffic carries no credential the service checks; a request without an `Authorization` header passes. The one exception is the optional **machine bearer** for relays that cannot log in (the Google Tasks relay, a cron):
 
 - If the Worker secret `MACHINE_TOKEN` is set and a request carries `Authorization: Bearer <MACHINE_TOKEN>`, it is a machine request: `actor` defaults to `MACHINE_ACTOR` (default `gt-relay`) when the body and `X-Actor` name none.
 - A machine request may only `GET /health`, `/registry`, `/registry/open`, `/queue`, `/radar`, `/dated` and `POST /capture`, `/tasks/:id/note`. Anything else is `403 { error: "forbidden" }` — the token cannot triage, close, reopen or flush, by construction.
-- A wrong bearer, a malformed `Authorization` header, or any bearer while `MACHINE_TOKEN` is unset → `401 { error: "unauthorized" }`. Requests without an `Authorization` header are untouched (Access is their gate).
+- A wrong bearer, a malformed `Authorization` header, or any bearer while no token is configured → `401 { error: "unauthorized" }`. Requests without an `Authorization` header are untouched (Access is their gate).
 - Access must let the relay's requests through to the Worker: either a bypass policy scoped to those paths, or a Service Auth policy (the relay would then also send `CF-Access-Client-Id/Secret`). The bearer check is what guards the path either way.
 
+**Owner-token mode, until Access** (`OWNER_TOKEN` set). Nothing sits in front of the Worker, so the service protects itself:
+
+- A request carrying `Authorization: Bearer <OWNER_TOKEN>` is the **owner**: full access to every route; `actor` defaults to `OWNER_ACTOR` (default `ftb`) and `source` to `app` when the body and headers name none. The covenant still applies — the token is not a `human_judgment` attestation.
+- Every route except `GET /api/v1/health` and the CORS preflight (`OPTIONS`) **requires** a valid bearer, owner or machine. No `Authorization` header → `401 { error: "unauthorized", detail: "…owner-token mode…" }`. The 401 carries the CORS headers so a browser client can read it and ask for the token.
+- The machine bearer keeps exactly its Access-mode semantics and scope.
+- Comparison is constant-time against both tokens on every request. Unset `OWNER_TOKEN` and the service is back in Access mode, unchanged.
+
+Clients: the app stores the owner token in Settings and sends it on every request; the MCP server forwards `REGISTRY_TOKEN` as its bearer on every request, reads included.
+
 ## Errors
-`400` malformed · `401` bad or unconfigured machine bearer · `403` covenant, or a machine token outside its routes · `404` unknown id · `409` stale (`If-Match` stamp older than current) · `500`.
+`400` malformed · `401` bad or unconfigured bearer, or no bearer in owner-token mode · `403` covenant, or a machine token outside its routes · `404` unknown id · `409` stale (`If-Match` stamp older than current) · `500`.

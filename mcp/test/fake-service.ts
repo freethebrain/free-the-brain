@@ -52,7 +52,11 @@ function nextFreeIds(rows: Task[], n: number): string[] {
   return Array.from({ length: n }, (_, i) => `T-${String(max + 1 + i).padStart(3, '0')}`);
 }
 
-export async function startFakeService(opts: { rows?: Task[]; today?: string } = {}): Promise<FakeService> {
+/**
+ * `ownerToken`: the service's owner-token mode (docs/api-contract.md § Auth) — every route except
+ * GET /health is 401 unless the request carries `Authorization: Bearer <ownerToken>`.
+ */
+export async function startFakeService(opts: { rows?: Task[]; today?: string; ownerToken?: string } = {}): Promise<FakeService> {
   const rows = opts.rows ?? fixtureRows();
   const today = opts.today ?? FIXTURE_TODAY;
   const requests: RecordedRequest[] = [];
@@ -90,6 +94,9 @@ export async function startFakeService(opts: { rows?: Task[]; today?: string } =
     const m = req.method;
 
     if (m === 'GET' && path === '/health') return send(200, { ok: true, stamp, rows: rows.length });
+    if (opts.ownerToken && req.headers.authorization !== `Bearer ${opts.ownerToken}`) {
+      return send(401, { error: 'unauthorized', detail: 'this service is in owner-token mode (until Access): send Authorization: Bearer <OWNER_TOKEN>' });
+    }
     if (m === 'GET' && path === '/registry') return send(200, envelope(rows));
     if (m === 'GET' && path === '/registry/open') return send(200, envelope(rows.filter((r) => OPEN.has(r.status))));
     if (m === 'GET' && path === '/queue') {

@@ -7,6 +7,7 @@
   "scripts": {
     "dev": "wrangler dev",
     "deploy": "wrangler deploy",
+    "bundle": "wrangler deploy --dry-run --outdir=../deploy/service",
     "test": "vitest run --project service",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "import:sql": "tsx scripts/import.ts ../data/registry > .import.sql",

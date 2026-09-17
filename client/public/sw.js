@@ -1,9 +1,10 @@
 /* Free the Brain — minimal service worker.
    App shell: cache-first (populated on install and on first fetch of any same-origin asset).
-   /api/: network-first, falling back to the last cached response when offline.
+   /api/: network-first, falling back to the last cached response when offline. Only 2xx responses
+   are cached — a 401 (owner-token mode, no token yet) or any other error must never be replayed.
    Bump SHELL when the shell changes shape; hashed Vite assets are cached as they are fetched. */
-const SHELL = "ftb-shell-v1";
-const API = "ftb-api-v1";
+const SHELL = "ftb-shell-v2";
+const API = "ftb-api-v2";
 const PRECACHE = ["/", "/index.html", "/manifest.webmanifest", "/icons/icon.svg", "/icons/icon-192.png", "/icons/icon-512.png"];
 
 self.addEventListener("install", (event) => {
@@ -32,8 +33,10 @@ self.addEventListener("fetch", (event) => {
     event.respondWith(
       fetch(req)
         .then((res) => {
-          const copy = res.clone();
-          caches.open(API).then((c) => c.put(req, copy)).catch(() => undefined);
+          if (res.ok) {
+            const copy = res.clone();
+            caches.open(API).then((c) => c.put(req, copy)).catch(() => undefined);
+          }
           return res;
         })
         .catch(() => caches.match(req).then((hit) => hit || new Response("offline", { status: 503, statusText: "offline" }))),

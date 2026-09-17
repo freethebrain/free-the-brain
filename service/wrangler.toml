@@ -30,6 +30,11 @@ migrations_dir = "migrations"
 # Machine bearer for relays that cannot sign in to Access (the Google Tasks relay): a SECRET, never
 # a var —  `npx wrangler secret put MACHINE_TOKEN`  (locally: MACHINE_TOKEN=… in .dev.vars). Unset
 # means every bearer is refused. See service/README.md, "Machine bearer".
+#
+# Owner bearer — owner-token mode, until Access: `npx wrangler secret put OWNER_TOKEN` (or the
+# dashboard's Secrets page). When set, that bearer is the owner with full access and EVERY route
+# except GET /api/v1/health requires a bearer; unset = Access mode. See service/README.md.
+# OWNER_ACTOR = "ftb"             # actor recorded for owner-token requests that name none (default ftb)
 
 [observability]
 enabled = true

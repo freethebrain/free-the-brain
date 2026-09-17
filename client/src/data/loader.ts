@@ -5,22 +5,33 @@
                 and the queue order are reproducible.
    Chosen by `?src=api` / `?src=fixture`; otherwise api when the hostname isn't localhost or
    VITE_API_BASE is set, else fixture. */
+import { authHeaders, getSettings } from "../persist/settings";
 import type { ApiTask, DoneRow, Injection, RegistryEnvelope, Row } from "./types";
 
 export type Mode = "api" | "fixture";
 
+/** The service's base URL: the Settings panel's value, else VITE_API_BASE, else "" (same origin). */
 export function apiBase(): string {
-  const b = (import.meta.env.VITE_API_BASE as string | undefined) || "";
-  return b.replace(/\/+$/, "");
+  return getSettings().apiBase;
 }
 
 /** Every call to the Registry Service goes through here so the fetch init is uniform. `credentials:
     "include"` makes the browser attach cookies cross-origin — the Cloudflare Access session cookie when
     the app and the API sit on different origins (ADR-1) — and is harmless same-origin, where cookies
     travel anyway. The service must answer with `Access-Control-Allow-Credentials: true` and an exact
-    origin, never `*`. */
+    origin, never `*`. When an owner token is stored (Settings) it travels as `Authorization: Bearer` —
+    the service's owner-token mode, until Access. */
 export function apiFetch(path: string, init: RequestInit = {}): Promise<Response> {
-  return fetch(apiBase() + path, { ...init, credentials: "include" });
+  const headers = { ...authHeaders(), ...((init.headers as Record<string, string> | undefined) || {}) };
+  return fetch(apiBase() + path, { ...init, headers, credentials: "include" });
+}
+
+/** The service answered 401: no bearer in owner-token mode, or a wrong one. */
+export class Unauthorized extends Error {
+  constructor(public readonly hadToken: boolean) {
+    super(hadToken ? "the registry service refused the stored owner token (HTTP 401)" : "the registry service requires an owner token (HTTP 401)");
+    this.name = "Unauthorized";
+  }
 }
 
 export function pickMode(loc: { search: string; hostname: string } = window.location): Mode {
@@ -101,6 +112,7 @@ export function fromEnvelope(env: RegistryEnvelope, today: string): Injection {
 export async function loadRegistry(mode: Mode = pickMode()): Promise<Injection> {
   if (mode === "api") {
     const res = await apiFetch("/api/v1/registry", { headers: { Accept: "application/json" } });
+    if (res.status === 401) throw new Unauthorized(getSettings().ownerToken !== "");
     if (!res.ok) throw new Error("GET /api/v1/registry → HTTP " + res.status);
     const env = (await res.json()) as RegistryEnvelope;
     return fromEnvelope(env, todaySofia());

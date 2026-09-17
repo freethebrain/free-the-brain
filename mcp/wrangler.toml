@@ -20,7 +20,8 @@ REGISTRY_URL = "http://127.0.0.1:8787"
 
 # Secrets — set with `wrangler secret put <NAME>`, never in this file:
 #   MCP_TOKEN                — shared bearer token (until OAuth is wired; see README "Workers and OAuth")
-#   REGISTRY_TOKEN           — optional bearer for the service, if it checks one
+#   REGISTRY_TOKEN           — bearer for the service, sent on every request; = the service's
+#                              OWNER_TOKEN while it runs in owner-token mode (until Access)
 #   CF_ACCESS_CLIENT_ID      — optional Cloudflare Access service token pair, if the
 #   CF_ACCESS_CLIENT_SECRET    service sits behind Access (ADR-1)
 
