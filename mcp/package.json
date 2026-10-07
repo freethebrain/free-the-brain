@@ -14,6 +14,7 @@
     "bundle": "npm run build:ui && wrangler deploy --dry-run --outdir=../deploy/mcp && node scripts/inline-bundle.mjs ../deploy/mcp"
   },
   "dependencies": {
+    "@cloudflare/workers-oauth-provider": "0.10.3",
     "@ftb/core": "0.1.0",
     "@modelcontextprotocol/ext-apps": "1.7.5",
     "@modelcontextprotocol/sdk": "1.30.0",

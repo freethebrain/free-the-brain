@@ -1,4 +1,5 @@
 # Copy to .dev.vars (gitignored) for `wrangler dev`. Secrets for production go in via `wrangler secret put`.
+# MCP_TOKEN: on the Worker, the password the /authorize sign-in page asks for (OAuth); on the Node entry, the bearer.
 MCP_TOKEN=choose-a-long-random-string
 # REGISTRY_TOKEN=
 # CF_ACCESS_CLIENT_ID=

@@ -38,7 +38,7 @@ In the repo: **Settings → Secrets and variables → Actions → New repository
 | `CLOUDFLARE_API_TOKEN` | A Cloudflare API token with **Workers Scripts:Edit** and **D1:Edit** on the account |
 | `FTB_OWNER_TOKEN` | A long random string you invent — the owner bearer the app and MCP send |
 | `FTB_MACHINE_TOKEN` | A second random string — the bearer the Google Tasks relay will use |
-| `FTB_MCP_TOKEN` | A third random string — the bearer your AI client sends to the MCP server |
+| `FTB_MCP_TOKEN` | A third random string — the password the MCP server's sign-in page asks for |
 
 The account and database ids are already in the two `wrangler.toml` files; nothing else is needed.
 The local code is ahead of GitHub, so push first (the repo zip in the project folder carries the
@@ -49,8 +49,11 @@ After the run goes green:
 1. `https://ftb-registry-service.christo-edrev.workers.dev/api/v1/health` returns 200.
 2. In the web app's Settings, set the API base to that origin and the owner token to
    `FTB_OWNER_TOKEN`; the fixture banner should be replaced by live rows, 93 open.
-3. The MCP server answers at `https://free-the-brain-mcp.christo-edrev.workers.dev/mcp` with
-   `FTB_MCP_TOKEN` as the bearer — that is the custom connector URL for Claude.
+3. The MCP server answers at `https://free-the-brain-mcp.christo-edrev.workers.dev/mcp` behind
+   OAuth. In Claude, add a custom connector with that bare URL and no token; Claude registers itself
+   and opens the server's sign-in page, which asks for the `FTB_MCP_TOKEN` value. After that Claude
+   holds and refreshes its own tokens. The OAuth state lives in the KV namespace `ftb-oauth`
+   (binding `OAUTH_KV`, already in `mcp/wrangler.toml`).
 
 ## Rotate
 

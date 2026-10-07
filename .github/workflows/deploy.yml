@@ -10,7 +10,7 @@
 #                          0fb9effb6f6efb07ec8d9408fe0cb562
 #   FTB_OWNER_TOKEN        a long random string; the owner bearer for the service (owner-token mode)
 #   FTB_MACHINE_TOKEN      a second random string; the bearer the Google Tasks relay uses
-#   FTB_MCP_TOKEN          a third random string; the bearer the MCP client sends
+#   FTB_MCP_TOKEN          a third random string; the password the MCP server's OAuth sign-in page asks for
 # Account and database ids live in the wrangler.toml files, not here. No secret is ever printed.
 #
 # Run it: push to main, or Actions → Deploy workers → Run workflow.
