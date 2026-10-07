@@ -20,22 +20,22 @@ fallthrough = true
 # Origin of the Registry Service (service/) — /api/v1 is appended. Swap for api.freethebrain.app
 # once the domain is bought and mapped.
 REGISTRY_URL = "https://ftb-registry-service.christo-edrev.workers.dev"
-# MCP_PATH = "/mcp"
+# The MCP endpoint is fixed at /mcp on the Worker: it is the OAuth provider's apiRoute (src/worker.ts).
 
 # Secrets — set with `wrangler secret put <NAME>`, never in this file:
-#   MCP_TOKEN                — shared bearer token (until OAuth is wired; see README "Workers and OAuth")
+#   MCP_TOKEN                — the password the OAuth sign-in page (/authorize) asks for; unset = the
+#                              page answers 503 and no token is ever issued (see README "Workers and OAuth")
 #   REGISTRY_TOKEN           — bearer for the service, sent on every request; = the service's
 #                              OWNER_TOKEN while it runs in owner-token mode (until Access)
 #   CF_ACCESS_CLIENT_ID      — optional Cloudflare Access service token pair, if the
 #   CF_ACCESS_CLIENT_SECRET    service sits behind Access (ADR-1)
 
-# --- OAuth (not wired) --------------------------------------------------------
-# @cloudflare/workers-oauth-provider needs a KV namespace for tokens and grants.
-# Create it with `wrangler kv namespace create OAUTH_KV`, then uncomment and paste
-# the id it prints:
-# [[kv_namespaces]]
-# binding = "OAUTH_KV"
-# id = "<paste the id from wrangler kv namespace create>"
+# --- OAuth ----------------------------------------------------------------------
+# @cloudflare/workers-oauth-provider keeps clients, grants and (hashed) tokens here.
+# Namespace "ftb-oauth", created in the Cloudflare dashboard.
+[[kv_namespaces]]
+binding = "OAUTH_KV"
+id = "0ab62935dd044f86ae173a5cf27e1862"
 
 # --- Routing (optional) -------------------------------------------------------
 # [[routes]]
